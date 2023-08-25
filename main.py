@@ -3,13 +3,31 @@ import cv2
 import numpy as np
 import pyrealsense2 as rs
 from cfonts import render as render_text
+
+import helper
 import pybullet_simulation as sim
-from helper import print_countdown
+from helper import print_countdown, draw_pixel_grid
 from old.main import visualize_points
 from openpose_handler import OpenPoseHandler
+from visualizer import visualize
+
+lengths = {
+    "neck": 0.2,
+    "torso": 0.6,
+    "arm": 0.35,
+    "forearm": 0.30,
+    "thigh": 0.5,
+    "leg": 0.45,
+    "foot": 0.15,
+    "shoulder": 0.22,
+    "hip": 0.13,
+    "head": 0.8
+}
 
 
 class RGBDto3DPose:
+    count = 0
+
     def __init__(self, playback: bool, duration: float, playback_file: str | None, resolution: tuple[int, int], fps: int, rotate: int, countdown: int,
                  savefile_prefix: str | None, save_joints: bool, save_bag: bool, show_rgb: bool, show_depth: bool, show_joint_video: bool):
         self.playback = playback
@@ -35,6 +53,22 @@ class RGBDto3DPose:
         if playback and (duration is None or duration <= 0):
             self.duration = float("inf")
 
+        # define (inverse) rotation function to call deprojection at the correct pixel
+        if rotate in [-4, 0, 4]:  # no rotation
+            self.inverse_rotation = lambda x, y: (round(x), round(y))
+            self.rotate_3d_coord = lambda c: (c[0], c[1], c[2])
+        elif rotate in [-3, 1]:  # left rotation
+            self.inverse_rotation = lambda x, y: (resolution[0] - round(y), round(x))
+            self.rotate_3d_coord = lambda c: (c[1], c[0], c[2])
+        elif rotate in [-2, 2]:  # 180° rotation
+            self.inverse_rotation = lambda x, y: (resolution[0] - round(x), resolution[1] - round(y))
+            self.rotate_3d_coord = lambda c: (c[0], c[1], c[2])
+        elif rotate in [-1, 3]:  # right rotation
+            self.inverse_rotation = lambda x, y: (round(y), resolution[1] - round(x))
+            self.rotate_3d_coord = lambda c: (c[1], c[0], c[2])
+        else:
+            raise ValueError("Rotation should be in range [-4, 4]")
+
         if (save_bag or save_joints) and (savefile_prefix is None or savefile_prefix == ""):
             raise ValueError("Provide prefix for saving files")
         if playback and (playback_file is None or playback_file == ""):
@@ -51,7 +85,6 @@ class RGBDto3DPose:
         self.pipeline = None
         self.openpose_handler: OpenPoseHandler = None
         self.joints = []
-
 
     def run(self):
         print("Use ESC to terminate, otherwise no files will be saved.")
@@ -72,7 +105,6 @@ class RGBDto3DPose:
         finally:
             cv2.destroyAllWindows()
             self.pipeline.stop()
-
 
     def prepare(self):
         # Initialize OpenPose Handler
@@ -106,7 +138,6 @@ class RGBDto3DPose:
         self.intrinsics = pipeline_profile.get_stream(rs.stream.depth).as_video_stream_profile().get_intrinsics()
         self.pipeline = pipeline
 
-
     def process_frame(self):
         # Wait for the next set of frames from the camera
         frames = self.pipeline.wait_for_frames()
@@ -125,19 +156,137 @@ class RGBDto3DPose:
         depth_image = np.rot90(depth_image, k=self.rotate)
         color_image = np.rot90(color_image, k=self.rotate)
 
-        if self.use_openpose:
-            joints = self.openpose_handler.push_frame(color_image, self.show_joint_video)
-            self.joints.append(joints)
         if self.show_rgb:
-            cv2.imshow("RGB-Stream", color_image)
+            cv2.imshow("RGB-Stream", draw_pixel_grid(color_image))
         if self.show_depth:
-            cv2.imshow("Depth-Stream", depth_image)
+            cv2.imshow("Depth-Stream", draw_pixel_grid(depth_image))
+        if self.use_openpose:
+            # get joints from OpenPose. Assume there is only one person
+            res = self.openpose_handler.push_frame(color_image, self.show_joint_video)[0]
+            joints, confidences = res[:, :2], res[:, 2]
+            for i, c in enumerate(confidences):
+                if c < 0.85:
+                    joints[i] = (0, 0)
+            joints = self.get_3d_coords(joints, depth_frame)
+            joints_val = self.validate_joints(joints, confidences)
+
+            if self.count == 30:
+                vis_coords = self.convert_openpose_coords(joints)
+                visualize_points(joints_val, OpenPoseHandler.pairs, joints)
+                # visualize(vis_coords, coords, OpenPoseHandler.pairs)
+            self.count += 1
+
+    def get_3d_coords(self, joints: np.ndarray, depth_frame) -> np.ndarray:
+        depths = depth_frame.as_depth_frame()
+        coords = np.zeros([joints.shape[0], 3])
+
+        for i, (x, y) in enumerate(joints):
+            try:
+                x, y = self.inverse_rotation(x, y)
+                depth = depths.get_distance(x, y)
+
+                # get 3d coordinates and reorder them from y,x,z to x,y,z
+                coord = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x, y), depth=depth)
+                coords[i] = self.rotate_3d_coord(coord)  # coord[1], coord[0], coord[2]
+            except RuntimeError:  # joint outside of picture
+                pass
+
+        return coords
+
+    def validate_joints(self, joints: np.ndarray, confidences: np.ndarray) -> np.ndarray:
+        def val_length(joint1: np.ndarray, joint2: np.ndarray, expected_length: float, deviation: float = 0.1) -> bool:
+            return expected_length - deviation <= np.linalg.norm(joint2 - joint1) <= expected_length + deviation
+
+        def val_depth(joint1: np.ndarray, joint2: np.ndarray, deviation: float = 0.2) -> bool:
+            return abs(joint1[2] - joint2[2]) <= deviation
+
+        val = np.zeros((25, 25), dtype="bool")
+
+        val_joints = np.copy(joints)
+
+        # If depth is wrong, then the length of limbs should be incorrect or the depth deviation is too high
+
+        # The upper body should have correct length and have approximately the same depth
+        # torso
+        val[1, 8] = val[8, 1] = val_length(joints[1], joints[8], lengths["torso"]) and val_depth(joints[1], joints[8])
+        # neck
+        val[0, 1] = val[1, 0] = val_length(joints[1], joints[0], lengths["neck"]) and val_depth(joints[1], joints[0])
+        # shoulderL
+        val[1, 2] = val[2, 1] = val_length(joints[1], joints[2], lengths["shoulder"]) and val_depth(joints[1], joints[2])
+        # shoulderR
+        val[1, 5] = val[5, 1] = val_length(joints[1], joints[5], lengths["shoulder"]) and val_depth(joints[1], joints[5])
+        # hipL
+        val[8, 9] = val[9, 8] = val_length(joints[8], joints[9], lengths["hip"]) and val_depth(joints[8], joints[9])
+        # hipR
+        val[8, 12] = val[12, 8] = val_length(joints[8], joints[12], lengths["hip"]) and val_depth(joints[8], joints[12])
+
+        # head
+        for i, j in [(0, 15), (0, 16), (15, 17), (16, 17)]:  # half head length
+            val[i, j] = val[j, i] = val_length(joints[i], joints[j], lengths["head"] / 2, 0.4) and val_depth(joints[8], joints[12], 0.4)
+        for i, j in [(0, 17), (0, 18)]:  # head length
+            val[i, j] = val[j, i] = val_length(joints[i], joints[j], lengths["head"], 0.4) and val_depth(joints[8], joints[12], 0.4)
+        for i, j in [(17, 18)]:  # double head length
+            val[i, j] = val[j, i] = val_length(joints[i], joints[j], lengths["head"] * 2, 0.6) and val_depth(joints[8], joints[12], 0.6)
+
+        # no depth because arm and leg very flexible
+        # upper arm
+        for i, j in [(2, 3), (5, 6)]:
+            val[i, j] = val[j, i] = val_length(joints[i], joints[j], lengths["arm"])
+        # lower arm
+        for i, j in [(3, 4), (6, 7)]:
+            val[i, j] = val[j, i] = val_length(joints[i], joints[j], lengths["forearm"])
+        # thigh
+        for i, j in [(9, 10), (12, 13)]:
+            val[i, j] = val[j, i] = val_length(joints[i], joints[j], lengths["thigh"])
+        # leg
+        for i, j in [(10, 11), (13, 14)]:
+            val[i, j] = val[j, i] = val_length(joints[i], joints[j], lengths["leg"])
+        # foot
+        for i, j in [(11, 22), (14, 19)]:
+            val[i, j] = val[j, i] = val_length(joints[i], joints[j], lengths["arm"])
+        # 20, 21, 23, 24 emitted
+
+        for i in range(25):
+            # remove depth of supposedly incorrect joints
+            if not (any(val[i]) or any(val[:, i])):
+                val_joints[i, 2] = 0
+
+            # remove joints with low confidence
+            if confidences[i] < 0.5:
+                val_joints[i] = 0
+
+        return val_joints
+
+    @staticmethod
+    def convert_openpose_coords(coords: np.ndarray) -> dict[str, list[np.ndarray]]:
+        ret = {}
+
+        def add_to_ret(name: str, positions: list[int]):
+            if all([not np.array_equal(coords[pos], (0, 0, 0)) for pos in positions]):
+                ret[name] = [np.array([coords[pos, 0], coords[pos, 2], coords[pos, 1]]) for pos in positions]
+
+        add_to_ret("head", [0])
+        add_to_ret("neck", [0, 1])
+        add_to_ret("torso", [1, 8])
+        add_to_ret("armR", [2, 3])
+        add_to_ret("armL", [5, 6])
+        add_to_ret("forearmR", [3, 4])
+        add_to_ret("forearmL", [6, 7])
+        add_to_ret("handR", [4])
+        add_to_ret("handL", [7])
+        add_to_ret("thighR", [9, 10])
+        add_to_ret("thighL", [12, 13])
+        add_to_ret("legR", [10, 11])
+        add_to_ret("legL", [13, 14])
+        add_to_ret("footR", [11, 22])
+        add_to_ret("footL", [14, 19])
+
+        return ret
 
 
 def stream(savefile_prefix: str | None = None, save_joints: bool = False, save_bag: bool = False, duration: float = float("inf"),
            resolution: tuple[int, int] = (480, 270), fps: int = 30, rotate: int = 1, countdown: int = 3,
            show_rgb: bool = False, show_depth: bool = True, show_joint_video: bool = True):
-
     cl = RGBDto3DPose(playback=False, duration=duration, playback_file=None, resolution=resolution, fps=fps, rotate=rotate, countdown=countdown,
                       savefile_prefix=savefile_prefix, save_joints=save_joints, save_bag=save_bag,
                       show_rgb=show_rgb, show_depth=show_depth, show_joint_video=show_joint_video)
@@ -147,7 +296,6 @@ def stream(savefile_prefix: str | None = None, save_joints: bool = False, save_b
 def playback(playback_file: str, savefile_prefix: str | None = None, save_joints: bool = False, save_bag: bool = False, duration: float = -1,
              resolution: tuple[int, int] = (480, 270), fps: int = 30, rotate: int = 1,
              show_rgb: bool = False, show_depth: bool = True, show_joint_video: bool = True):
-
     cl = RGBDto3DPose(playback=True, duration=duration, playback_file=playback_file, resolution=resolution, fps=fps, rotate=rotate, countdown=0,
                       savefile_prefix=savefile_prefix, save_joints=save_joints, save_bag=save_bag,
                       show_rgb=show_rgb, show_depth=show_depth, show_joint_video=show_joint_video)
@@ -155,4 +303,6 @@ def playback(playback_file: str, savefile_prefix: str | None = None, save_joints
 
 
 if __name__ == '__main__':
-    playback("test.bag")
+    playback("test.bag", show_rgb=True)
+
+    # mmlab
