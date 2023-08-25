@@ -198,11 +198,12 @@ def visualize_points(point_list, connection_tuples):
             # Draw a line between the points
             line_id = p.addUserDebugLine(lineFromXYZ=pos1, lineToXYZ=pos2, lineColorRGB=[0, 0, 0.9], lineWidth=20)
 
+
 def convert_openpose_coords(coords: np.ndarray) -> dict[str, list[np.ndarray]]:
         ret = {}
 
         def add_to_ret(name: str, positions: list[int]):
-            if all([not np.array_equal(coords[pos], (0, 0, 0)) for pos in positions]):
+            if all([coords[pos, 2] != 0 for pos in positions]):
                 ret[name] = [np.array([coords[pos, 0], coords[pos, 2], coords[pos, 1]]) for pos in positions]
 
         add_to_ret("head", [0])
@@ -223,10 +224,19 @@ def convert_openpose_coords(coords: np.ndarray) -> dict[str, list[np.ndarray]]:
 
         return ret
 
-def visualize(joints: dict[str, np.ndarray | tuple[np.ndarray, np.ndarray]], point_list, connection_tuples):
+
+def limb_coords_generator(joints: np.ndarray):
+    tuples = [(0,), (0, 1), (1, 8), (2, 3), (5, 6), (3, 4), (6, 7), (4,), (7,), (9, 10), (12, 13), (10, 11), (13, 14), (11, 22), (14, 19)]
+    names = ["head", "neck", "torso", "armR", "armL", "forearmR", "forearmL", "handR", "handL", "thighR", "thighL", "legR", "legL", "footR", "footL"]
+
+    while len(tuples) > 0:
+        yield names.pop(), list(joints.take(tuples.pop(), axis=0))
+
+
+def visualize(joints: np.ndarray, connection_tuples):
     vis = Visualizer()
-    vis.move_limbs(joints)
-    visualize_points(point_list, connection_tuples)
+    vis.move_limbs(convert_openpose_coords(joints))
+    visualize_points(joints, connection_tuples)
     while True:
         p.stepSimulation()
     p.disconnect()
@@ -235,9 +245,6 @@ def visualize(joints: dict[str, np.ndarray | tuple[np.ndarray, np.ndarray]], poi
 if __name__ == '__main__':
     pairs = [(1, 8), (1, 2), (1, 5), (2, 3), (3, 4), (5, 6), (6, 7), (8, 9), (9, 10), (10, 11), (8, 12), (12, 13), (13, 14), (1, 0), (0, 15),
              (15, 17), (0, 16), (16, 18), (14, 19), (19, 20), (14, 21), (11, 22), (22, 23), (11, 24)]
-    # Define the person's height and initial position
-    person_height = 1.98  # in meters
-    initial_z = 1.0  # in meters
 
     point_list = np.array([
         [0.00, 1.90, 1.00],  # Nose
@@ -267,6 +274,4 @@ if __name__ == '__main__':
         [- .11, - .03, .99],  # RightHeel
     ])
 
-    joints = convert_openpose_coords(point_list)
-
-    visualize(joints, point_list, pairs)
+    visualize(point_list, pairs)

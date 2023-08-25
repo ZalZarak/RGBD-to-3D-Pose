@@ -7,6 +7,8 @@ import argparse
 import time
 import numpy as np
 
+from helper import draw_pixel_grid
+
 # Import Openpose (Windows/Ubuntu/OSX)
 dir_path = os.path.dirname(os.path.realpath(__file__))
 openpose_python_path = "/home/pk/programs/openpose/build/python"
@@ -35,34 +37,27 @@ except ImportError as e:
 
 class OpenPoseHandler:
     op_wrapper: any
+    poseModel = op.PoseModel.BODY_25
+    mapping = op.getPoseBodyPartMapping(poseModel)
+    reverse_mapping = {v: k for k, v in op.getPoseBodyPartMapping(poseModel).items()}
+    #pairs = [(op.getPosePartPairs(op.PoseModel.BODY_25)[i], op.getPosePartPairs(op.PoseModel.BODY_25)[i + 1]) for i in range(0, len(op.getPosePartPairs(op.PoseModel.BODY_25)), 2)]
+    #pairs_hr = [f"{op.getPoseBodyPartMapping(op.PoseModel.BODY_25)[a]}-{op.getPoseBodyPartMapping(op.PoseModel.BODY_25)[b]}" for a, b in pairs]
+    pairs = [(1, 8), (1, 2), (1, 5), (2, 3), (3, 4), (5, 6), (6, 7), (8, 9), (9, 10), (10, 11), (8, 12), (12, 13), (13, 14), (1, 0), (0, 15), (15, 17), (0, 16), (16, 18), (14, 19), (19, 20), (14, 21), (11, 22), (22, 23), (11, 24)]
+
 
     def __init__(self):
-        # Flags
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--image_dir", default="imgs/", help="Process a directory of images. Read all standard formats (jpg, png, bmp, etc.).")
-        parser.add_argument("--no_display", default=False, help="Enable to disable the visual display.")
-        parser.add_argument("--hand", default=True, help="Enable to disable the visual display.")
-        args = parser.parse_known_args()
-
         # Custom Params (refer to include/openpose/flags.hpp for more parameters)
-        params = dict()
-        # params["model_folder"] = "/home/pk/programs/openpose/models/"
-        params["model_folder"] = model_folder
-        # params["hand"] = True
-
-        # Add others in path?
-        for i in range(0, len(args[1])):
-            curr_item = args[1][i]
-            if i != len(args[1]) - 1:
-                next_item = args[1][i + 1]
-            else:
-                next_item = "1"
-            if "--" in curr_item and "--" in next_item:
-                key = curr_item.replace('-', '')
-                if key not in params:  params[key] = "1"
-            elif "--" in curr_item and "--" not in next_item:
-                key = curr_item.replace('-', '')
-                if key not in params: params[key] = next_item
+        # all parameters defined here: https://github.com/CMU-Perceptual-Computing-Lab/openpose/blob/master/doc/advanced/demo_advanced.md
+        params = {
+            "image_dir": None,   # With this flag openpose accepts custom input in jpg/png/... format. Image dir is not used
+            "model_folder": model_folder,
+            # "hand": True,
+            "process_real_time": True,
+            "number_people_max": 1,
+            # "net_resolution": "-1x736"    # Multiples of 16. If it is increased, the accuracy potentially increases. If it is decreased, the speed increases. For maximum speed-accuracy balance, it should keep the closest aspect ratio possible to the images or videos to be processed. Using -1 in any of the dimensions, OP will choose the optimal aspect ratio depending on the user's input value.
+            # "hand_net_resolution": "240x240"
+            "render_pose": 1
+        }
 
         # Starting OpenPose
         op_wrapper = op.WrapperPython()
@@ -79,6 +74,15 @@ class OpenPoseHandler:
         datum.cvInputData = frame
         self.op_wrapper.emplaceAndPop(op.VectorDatum([datum]))
         if show_video:
-            cv2.imshow("Joint-Stream", datum.cvOutputData)
+            cv2.imshow("Joint-Stream", draw_pixel_grid(datum.cvOutputData))
 
-        return datum.poseKeypoints
+        if datum.poseKeypoints is not None:
+            return datum.poseKeypoints
+        else:
+            return np.zeros([1, op.getPoseNumberBodyParts(self.poseModel), 3])
+
+
+if __name__ == '__main__':
+    print(OpenPoseHandler.mapping)
+    print(OpenPoseHandler.pairs)
+    print(OpenPoseHandler.pairs_hr)
