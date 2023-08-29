@@ -5,9 +5,13 @@ import numpy as np
 import pybullet as p
 import pybullet_data
 
+import multiprocessing as mp
+
 
 # from openpose_handler import OpenPoseHandler
 
+pairs = [(1, 8), (1, 2), (1, 5), (2, 3), (3, 4), (5, 6), (6, 7), (8, 9), (9, 10), (10, 11), (8, 12), (12, 13), (13, 14), (1, 0), (0, 15),
+         (15, 17), (0, 16), (16, 18), (14, 19), (19, 20), (14, 21), (11, 22), (22, 23), (11, 24)]
 
 class Visualizer:
     #TODO: Collision shapes: Dont forget to activate/deactivate
@@ -124,6 +128,13 @@ class Visualizer:
 
         self.limbs_directions = {key: [0, 0, 1] for key in self.limbs}
 
+        self.points = {}
+        for i in range(25):
+            sphere_id = p.createVisualShape(shapeType=p.GEOM_SPHERE, radius=0.05, rgbaColor=[0, 0, 0, 1.0])
+            body_id = p.createMultiBody(baseMass=0, baseVisualShapeIndex=sphere_id, baseCollisionShapeIndex=-1, basePosition=[0, 0, 0])
+            self.points[i] = body_id
+        self.connections = []
+
     def deactivate_limbs(self, names: [str]):
         for name in names:
             p.changeVisualShape(self.limbs[name], -1, rgbaColor=[0, 0, 0, 0])
@@ -164,39 +175,25 @@ class Visualizer:
             p.changeVisualShape(limb_id, -1, rgbaColor=[0, 0, 0.9, 0.5])
 
 
-def visualize_points(point_list, connection_tuples):
-    # Create a dictionary to store sphere IDs for each point
-    sphere_ids = {}
+    def visualize_points(self, point_list):
+        for point_id, point in enumerate(point_list):
+            id = self.points[point_id]
+            if not point[2] == 0:
+                x, z, y = point
+                p.resetBasePositionAndOrientation(id, [x, y, z], p.getQuaternionFromEuler([0, 0, 0]))
+                p.changeVisualShape(id, -1, rgbaColor=[0.9, 0, 0, 1.0])
 
-    # Visualize each point in the list
-    for point_id, point in enumerate(point_list):
-        if not point[2] == 0:
-            x, z, y = point
+        for i in self.connections:
+            p.removeUserDebugItem(self.connections[i])
 
-            # Create a sphere at the point's position
-            sphere_id = p.createVisualShape(shapeType=p.GEOM_SPHERE, radius=0.05, rgbaColor=[0.9, 0, 0, 1.0])
+        for i, connection in enumerate(pairs):
+            point_id1, point_id2 = connection
+            (x1, z1, y1), (x2, z2, y2) = point_list[point_id1], point_list[point_id2]
 
-            # Add the sphere to the simulation
-            body_id = p.createMultiBody(baseMass=0, baseVisualShapeIndex=sphere_id, baseCollisionShapeIndex=-1, basePosition=[x, y, z])
-
-            # Store the sphere ID in the dictionary
-            sphere_ids[point_id] = body_id
-
-    # Visualize connections between points
-    for connection in connection_tuples:
-        point_id1, point_id2 = connection
-
-        # Retrieve the corresponding sphere IDs
-        if point_id1 in sphere_ids and point_id2 in sphere_ids:
-            sphere_id1 = sphere_ids[point_id1]
-            sphere_id2 = sphere_ids[point_id2]
-
-            # Get the positions of the spheres
-            pos1, _ = p.getBasePositionAndOrientation(sphere_id1)
-            pos2, _ = p.getBasePositionAndOrientation(sphere_id2)
-
-            # Draw a line between the points
-            line_id = p.addUserDebugLine(lineFromXYZ=pos1, lineToXYZ=pos2, lineColorRGB=[0, 0, 0.9], lineWidth=20)
+            # Retrieve the corresponding sphere IDs
+            if y1 != 0 and y2 != 0:
+                # Draw a line between the points
+                self.connections.append(p.addUserDebugLine(lineFromXYZ=(x1, y1, z1), lineToXYZ=(x2, y2, z2), lineColorRGB=[0, 0, 0.9], lineWidth=20))
 
 
 def convert_openpose_coords(coords: np.ndarray) -> dict[str, list[np.ndarray]]:
@@ -233,19 +230,40 @@ def limb_coords_generator(joints: np.ndarray):
         yield names.pop(), list(joints.take(tuples.pop(), axis=0))
 
 
-def visualize(joints: np.ndarray, connection_tuples):
+"""def visualize(con):
     vis = Visualizer()
-    vis.move_limbs(convert_openpose_coords(joints))
-    visualize_points(joints, connection_tuples)
+
+    # visualize_points(joints, connection_tuples)
     while True:
+        joints = con.recv()
+        vis.move_limbs(convert_openpose_coords(joints))
+        p.stepSimulation()
+    p.disconnect()"""
+
+def visualize(lock, joints_sync):
+    vis = Visualizer()
+
+    while True:
+        with lock:
+            joints = np.array(joints_sync).reshape([25, 3])
+        vis.visualize_points(joints)
+        # vis.move_limbs(convert_openpose_coords(joints))
         p.stepSimulation()
     p.disconnect()
 
 
-if __name__ == '__main__':
-    pairs = [(1, 8), (1, 2), (1, 5), (2, 3), (3, 4), (5, 6), (6, 7), (8, 9), (9, 10), (10, 11), (8, 12), (12, 13), (13, 14), (1, 0), (0, 15),
-             (15, 17), (0, 16), (16, 18), (14, 19), (19, 20), (14, 21), (11, 22), (22, 23), (11, 24)]
+"""def visualize_single(joints: np.ndarray):
+    vis = Visualizer()
+    vis.move_limbs(convert_openpose_coords(joints))
+    visualize_points(joints, pairs)
+    while True:
+        p.stepSimulation()
+    p.disconnect()"""
 
+
+
+
+if __name__ == '__main__':
     point_list = np.array([
         [0.00, 1.90, 1.00],  # Nose
         [0.00, 1.80, 1.00],  # Neck
@@ -274,4 +292,4 @@ if __name__ == '__main__':
         [- .11, - .03, .99],  # RightHeel
     ])
 
-    visualize(point_list, pairs)
+    # visualize_single(point_list)

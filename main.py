@@ -11,6 +11,8 @@ from old.main import visualize_points
 from openpose_handler import OpenPoseHandler
 from visualizer import visualize
 
+import multiprocessing as mp
+
 lengths = {
     "neck": 0.2,
     "torso": 0.6,
@@ -84,7 +86,18 @@ class RGBDto3DPose:
         self.intrinsics = None
         self.pipeline = None
         self.openpose_handler: OpenPoseHandler = None
-        self.joints = []
+
+        """visualizer_conn, self.main_conn = mp.Pipe(duplex=False)
+        self.p_vis = mp.Process(target=visualize, args=(visualizer_conn, ))
+        self.p_vis.start()
+        time.sleep(7)"""
+
+        self.lock = mp.Lock()
+        # self.update = mp.Value('b', 0)
+        self.joints = mp.Array('f', np.zeros([25 * 3]))
+        self.p = mp.Process(target=visualize, args=(self.lock, self.joints))
+        self.p.start()
+        time.sleep(7)
 
     def run(self):
         print("Use ESC to terminate, otherwise no files will be saved.")
@@ -170,10 +183,13 @@ class RGBDto3DPose:
             joints = self.get_3d_coords(joints, depth_frame)
             joints_val = self.validate_joints(joints, confidences)
 
-            if self.count == 10:
+            # self.main_conn.send(joints_val)
+            with self.lock:
+                self.joints[:] = joints.flatten()
+            """if self.count == 10:
                 # visualize_points(joints_val, OpenPoseHandler.pairs, joints)
                 visualize(joints, OpenPoseHandler.pairs)
-            self.count += 1
+            self.count += 1"""
 
     def get_3d_coords(self, joints: np.ndarray, depth_frame) -> np.ndarray:
         depths = depth_frame.as_depth_frame()
