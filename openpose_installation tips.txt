@@ -1,0 +1,58 @@
+Windows:
+
+1. Prerequisites: https://github.com/CMU-Perceptual-Computing-Lab/openpose/blob/master/doc/installation/1_prerequisites.md
+
+2. Follow https://github.com/CMU-Perceptual-Computing-Lab/openpose/blob/master/doc/installation/0_index.md
+
+3. If Server down
+    Follow: https://github.com/CMU-Perceptual-Computing-Lab/openpose/issues/1602
+    Download:
+    Models: https://drive.google.com/file/d/1QCSxJZpnWvM00hx49CJ2zky7PWGzpcEh
+    3rdparty before 2021: https://drive.google.com/file/d/1mqPEnqCk5bLMZ3XnfvxA4Dao7pj0TErr
+    3rdparty for 2021 versions: https://drive.google.com/file/d/1WvftDLLEwAxeO2A-n12g5IFtfLbMY9mG
+    Unpack as explained here: https://github.com/CMU-Perceptual-Computing-Lab/openpose/blob/master/doc/installation/1_prerequisites.md
+
+4. Enable BUILD_PYTHON in CMake
+   To enable custom python executable (e.g. conda env):
+        Add Entry in CMake Gui: Name: PYTHON_EXECUTABLE, Type: file path
+        Set it to your python executable
+
+
+5. For VS 2017 compile with from build dir:
+    cmake .. -G "Visual Studio 15 2017" -A x64
+    cmake --build . --config Release
+    copy x64\Release\*  bin\
+
+6. If second command produces openpose  error C2338: ssize_t != Py_intptr_t error:
+   In openpose/3rdparty/pybind11/include/pybind11/numpy.h replace
+
+    #if defined(_MSC_VER)
+    #  pragma warning(push)
+    #  pragma warning(disable: 4127) // warning C4127: Conditional expression is constant
+    #endif
+
+    with
+
+    #if defined(_MSC_VER)
+    #  pragma warning(push)
+    #  pragma warning(disable: 4127) // warning C4127: Conditional expression is constant
+    #include <BaseTsd.h>
+    typedef SSIZE_T ssize_t;
+    #endif
+
+
+    If second command produces says path to long: Make your path shorter (rename dirs, move dirs up).
+    Sadly this happens quite easily (Path until incl. build dir up to around 58 chars I believe)
+
+7. In order to use OpenPose outside Visual Studio, and assuming you have not unchecked the BUILD_BIN_FOLDER flag in
+    CMake, copy all DLLs from {build_directory}/bin into the folder where the generated openpose.dll and *.exe demos
+    are, e.g., {build_directory}x64/Release for the 64-bit release version.
+
+8. Also, copy them into openpose\build\python\openpose\Release
+
+9. Try to hardcode openpose paths in python file in case of import problems
+   Repeating 8 & 9 solved my problem once.
+
+
+Add Entry: PYTHON_EXECUTABLE, file path, C:/Users/PK/.conda/envs/IR-DRL-ENV/python.exe
+Sadly too long path easily reached, don't have initially long path

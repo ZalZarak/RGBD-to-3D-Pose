@@ -11,23 +11,30 @@ from helper import draw_pixel_grid
 
 # Import Openpose (Windows/Ubuntu/OSX)
 dir_path = os.path.dirname(os.path.realpath(__file__))
-openpose_python_path = "/home/pk/programs/openpose/build/python"
-model_folder = "/home/pk/programs/openpose/models/"
+openpose_python_path_ubuntu = "/home/pk/programs/openpose/build/python"
+model_folder_ubuntu = "/home/pk/programs/openpose/models/"
+
+openpose_python_path_win = "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/build2/python/openpose/Release/"
+openpose_release_path_win = "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/build2/x64/Release"
+openpose_bin_path_win = "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/build2/bin"
+model_folder_win = "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/models"
 
 try:
     # Windows Import
     if platform == "win32":
         # Change these variables to point to the correct folder (Release/x64 etc.)
         # sys.path.append(dir_path + '/../../python/openpose/Release')
-        sys.path.append(openpose_python_path)
-        os.environ['PATH'] = os.environ['PATH'] + ';' + dir_path + '/../../x64/Release;' + dir_path + '/../../bin;'
+        sys.path.append(openpose_python_path_win)
+        os.environ['PATH'] = os.environ['PATH'] + ';' + openpose_release_path_win + ';' + openpose_bin_path_win + ';'
+        model_folder = model_folder_win
         import pyopenpose as op
     else:
         # Change these variables to point to the correct folder (Release/x64 etc.)
         # sys.path.append('/home/pk/programs/openpose/build/python');
-        sys.path.append(openpose_python_path)
+        sys.path.append(openpose_python_path_ubuntu)
         # If you run `make install` (default path is `/usr/local/python` for Ubuntu), you can also access the OpenPose/python module from there. This will install OpenPose and the python library at your desired installation path. Ensure that this is in your python path in order to use it.
         # sys.path.append('/usr/local/python')
+        model_folder = model_folder_ubuntu
         from openpose import pyopenpose as op
 except ImportError as e:
     print(
