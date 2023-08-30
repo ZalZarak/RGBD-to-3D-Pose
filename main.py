@@ -1,4 +1,8 @@
+import os
+import pickle
 import time
+from pathlib import Path
+
 import cv2
 import numpy as np
 import pyrealsense2 as rs
@@ -9,7 +13,7 @@ import pybullet_simulation as sim
 from helper import print_countdown, draw_pixel_grid
 from old.main import visualize_points
 from openpose_handler import OpenPoseHandler
-from visualizer import visualize
+from simulator import simulate_sync
 
 import multiprocessing as mp
 
@@ -31,7 +35,8 @@ class RGBDto3DPose:
     count = 0
 
     def __init__(self, playback: bool, duration: float, playback_file: str | None, resolution: tuple[int, int], fps: int, rotate: int, countdown: int,
-                 savefile_prefix: str | None, save_joints: bool, save_bag: bool, show_rgb: bool, show_depth: bool, show_joint_video: bool):
+                 savefile_prefix: str | None, save_joints: bool, save_bag: bool, show_rgb: bool, show_depth: bool, show_joint_video: bool,
+                 simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool):
         self.playback = playback
         self.duration = duration
         self.playback_file = playback_file
@@ -39,7 +44,6 @@ class RGBDto3DPose:
         self.fps = fps
         self.rotate = rotate
         self.countdown = countdown
-        self.save_prefix = savefile_prefix
         self.save_joints = save_joints
         self.save_bag = save_bag
         self.show_rgb = show_rgb
@@ -48,9 +52,20 @@ class RGBDto3DPose:
 
         self.use_openpose = save_joints or show_joint_video
         self.colorizer = rs.colorizer()  # Create colorizer object
-        self.result_directory = "results/"
-        self.postfix_bag = ".bag"
-        self.postfix_joints = "_joints.npy"
+        self.filename_bag = savefile_prefix + ".bag"
+        self.filename_joints = savefile_prefix + "_joints.pkl"
+
+        if save_bag and os.path.exists(self.filename_bag):
+            print(f"File {self.filename_bag} already exists. Proceeding will overwrite this file.")
+            print(f"Proceed? y/[n]")
+            if input().lower() != 'y':
+                exit()
+
+        if save_joints and os.path.exists(self.filename_joints):
+            print(f"File {self.filename_bag} already exists. Proceeding will overwrite this file.")
+            print(f"Proceed? y/[n]")
+            if input().lower() != 'y':
+                exit()
 
         if playback and (duration is None or duration <= 0):
             self.duration = float("inf")
@@ -87,17 +102,15 @@ class RGBDto3DPose:
         self.pipeline = None
         self.openpose_handler: OpenPoseHandler = None
 
-        """visualizer_conn, self.main_conn = mp.Pipe(duplex=False)
-        self.p_vis = mp.Process(target=visualize, args=(visualizer_conn, ))
-        self.p_vis.start()
-        time.sleep(7)"""
+        self.simulate = simulate_limbs or simulate_joints or simulate_joint_connections
+        self.simulate_limbs = simulate_limbs
+        self.simulate_joints = simulate_joints
+        self.simulate_joint_connections = simulate_joint_connections
+        self.done = None
+        self.joints = None
 
-        self.lock = mp.Lock()
-        # self.update = mp.Value('b', 0)
-        self.joints = mp.Array('f', np.zeros([25 * 3]))
-        self.p = mp.Process(target=visualize, args=(self.lock, self.joints))
-        self.p.start()
-        time.sleep(7)
+        self.joints_save = []
+        self.start_time = -1
 
     def run(self):
         print("Use ESC to terminate, otherwise no files will be saved.")
@@ -109,6 +122,7 @@ class RGBDto3DPose:
         key = None
 
         self.prepare()
+        self.start_time = time.time()
 
         try:
             while key != 27 and frame_counter < max_frames:
@@ -116,10 +130,32 @@ class RGBDto3DPose:
 
                 key = cv2.waitKey(1)
         finally:
+            if self.done is not None:
+                self.done.value = True
             cv2.destroyAllWindows()
             self.pipeline.stop()
+            if self.save_joints:
+                with open(self.filename_joints, 'wb') as file:
+                    pickle.dump(self.joints_save, file)
+                print("Joints saved to:", self.filename_joints)
 
     def prepare(self):
+        # Prepare visualizer
+
+        if self.simulate:
+            """visualizer_conn, self.main_conn = mp.Pipe(duplex=False)
+            ready = mp.Event()
+            self.p_vis = mp.Process(target=visualize, args=(visualizer_conn, ready, self.simulate_shape, self.simulate_joints, self.simulate_joint_connections))
+            self.p_vis.start()
+            ready.wait()"""
+
+            ready = mp.Event()
+            self.done = mp.Value('b', False)
+            self.joints = mp.Array('f', np.zeros([25 * 3]))
+            p = mp.Process(target=simulate_sync, args=(self.joints, ready, self.done, self.simulate_limbs, self.simulate_joints, self.simulate_joint_connections))
+            p.start()
+            ready.wait()
+
         # Initialize OpenPose Handler
         if self.use_openpose:
             self.openpose_handler = OpenPoseHandler()
@@ -137,7 +173,7 @@ class RGBDto3DPose:
         config.enable_stream(rs.stream.color, self.resolution[0], self.resolution[1], rs.format.bgr8, self.fps)
 
         if self.save_bag:
-            config.enable_record_to_file(self.save_prefix + self.postfix_bag)
+            config.enable_record_to_file(self.filename_bag)
             # Start the pipeline
             pipeline_profile = pipeline.start(config)
             device = pipeline_profile.get_device()
@@ -183,9 +219,12 @@ class RGBDto3DPose:
             joints = self.get_3d_coords(joints, depth_frame)
             joints_val = self.validate_joints(joints, confidences)
 
-            # self.main_conn.send(joints_val)
-            with self.lock:
-                self.joints[:] = joints.flatten()
+            if self.simulate:
+                # self.main_conn.send(joints_val)
+                self.joints[:] = joints_val.flatten()
+            if self.save_joints:
+                self.joints_save.append((time.time() - self.start_time, joints_val))
+
             """if self.count == 10:
                 # visualize_points(joints_val, OpenPoseHandler.pairs, joints)
                 visualize(joints, OpenPoseHandler.pairs)
@@ -272,25 +311,31 @@ class RGBDto3DPose:
 
         return val_joints
 
+
 def stream(savefile_prefix: str | None = None, save_joints: bool = False, save_bag: bool = False, duration: float = float("inf"),
            resolution: tuple[int, int] = (480, 270), fps: int = 30, rotate: int = 1, countdown: int = 3,
-           show_rgb: bool = False, show_depth: bool = True, show_joint_video: bool = True):
+           show_rgb: bool = False, show_depth: bool = True, show_joint_video: bool = True,
+           simulate_limbs: bool = True, simulate_joints: bool = True, simulate_joint_connections: bool = True):
     cl = RGBDto3DPose(playback=False, duration=duration, playback_file=None, resolution=resolution, fps=fps, rotate=rotate, countdown=countdown,
                       savefile_prefix=savefile_prefix, save_joints=save_joints, save_bag=save_bag,
-                      show_rgb=show_rgb, show_depth=show_depth, show_joint_video=show_joint_video)
+                      show_rgb=show_rgb, show_depth=show_depth, show_joint_video=show_joint_video,
+                      simulate_limbs=simulate_limbs, simulate_joints=simulate_joints, simulate_joint_connections=simulate_joint_connections)
     cl.run()
 
 
 def playback(playback_file: str, savefile_prefix: str | None = None, save_joints: bool = False, save_bag: bool = False, duration: float = -1,
              resolution: tuple[int, int] = (480, 270), fps: int = 30, rotate: int = 1,
-             show_rgb: bool = False, show_depth: bool = True, show_joint_video: bool = True):
+             show_rgb: bool = False, show_depth: bool = True, show_joint_video: bool = True,
+             simulate_limbs: bool = True, simulate_joints: bool = True, simulate_joint_connections: bool = True):
     cl = RGBDto3DPose(playback=True, duration=duration, playback_file=playback_file, resolution=resolution, fps=fps, rotate=rotate, countdown=0,
                       savefile_prefix=savefile_prefix, save_joints=save_joints, save_bag=save_bag,
-                      show_rgb=show_rgb, show_depth=show_depth, show_joint_video=show_joint_video)
+                      show_rgb=show_rgb, show_depth=show_depth, show_joint_video=show_joint_video,
+                      simulate_limbs=simulate_limbs, simulate_joints=simulate_joints, simulate_joint_connections=simulate_joint_connections)
     cl.run()
 
 
 if __name__ == '__main__':
-    playback("test.bag", show_rgb=True)
+    playback("test.bag", save_joints=True, savefile_prefix="vid", simulate_limbs = False, simulate_joints = False, simulate_joint_connections = False)
+    # playback("test.bag")
 
     # mmlab
