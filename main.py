@@ -14,22 +14,10 @@ import pybullet_simulation as sim
 from helper import print_countdown, draw_pixel_grid
 from old.main import visualize_points
 from openpose_handler import OpenPoseHandler
-from simulator import simulate_sync
+from simulator import simulate_sync, lengths
 
 import multiprocessing as mp
 
-lengths = {
-    "neck": 0.2,
-    "torso": 0.6,
-    "arm": 0.35,
-    "forearm": 0.30,
-    "thigh": 0.5,
-    "leg": 0.45,
-    "foot": 0.15,
-    "shoulder": 0.22,
-    "hip": 0.13,
-    "head": 0.8
-}
 
 
 class RGBDto3DPose:

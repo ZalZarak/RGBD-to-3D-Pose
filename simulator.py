@@ -16,6 +16,30 @@ import multiprocessing as mp
 pairs = [(1, 8), (1, 2), (1, 5), (2, 3), (3, 4), (5, 6), (6, 7), (8, 9), (9, 10), (10, 11), (8, 12), (12, 13), (13, 14), (1, 0), (0, 15),
          (15, 17), (0, 16), (16, 18), (14, 19), (19, 20), (14, 21), (11, 22), (22, 23), (11, 24)]
 
+radii = {
+    "head": 0.11,
+    "neck": 0.06,
+    "torso": 0.2,
+    "arm": 0.05,
+    "forearm": 0.04,
+    "hand": 0.2,
+    "thigh": 0.07,
+    "leg": 0.06,
+    "foot": 0.03
+}
+
+lengths = {
+    "neck": 0.2,
+    "torso": 0.6,
+    "arm": 0.35,
+    "forearm": 0.30,
+    "thigh": 0.5,
+    "leg": 0.45,
+    "foot": 0.15,
+    "shoulder": 0.22,
+    "hip": 0.13,
+    "head": 0.8
+}
 
 class Simulator:
 
@@ -28,28 +52,6 @@ class Simulator:
         self.simulate_limbs = simulate_limbs
         self.simulate_joints = simulate_joints
         self.simulate_joint_connections = simulate_joint_connections
-
-        radii = {
-            "head": 0.11,
-            "neck": 0.06,
-            "torso": 0.2,
-            "arm": 0.05,
-            "forearm": 0.04,
-            "hand": 0.2,
-            "thigh": 0.07,
-            "leg": 0.06,
-            "foot": 0.03
-        }
-
-        lengths = {
-            "neck": 0.2,
-            "torso": 0.6,
-            "arm": 0.35,
-            "forearm": 0.30,
-            "thigh": 0.5,
-            "leg": 0.45,
-            "foot": 0.15
-        }
 
         self.limbs = {}
 
@@ -177,9 +179,12 @@ class Simulator:
                 pass
 
         else:
+            start = time.time()
+            c = 0
             for _, joints in frames:
                 self.process_frame(joints)
-
+                c += 1
+            print(f"fps: {c/(time.time()-start)}")
         p.disconnect()
 
     def process_frame(self, joints: np.ndarray):
