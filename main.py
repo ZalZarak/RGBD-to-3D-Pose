@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 import pyrealsense2 as rs
 from cfonts import render as render_text
+from math import sin, cos
 
 import helper
 import pybullet_simulation as sim
@@ -34,15 +35,44 @@ lengths = {
 class RGBDto3DPose:
     count = 0
 
-    def __init__(self, playback: bool, duration: float, playback_file: str | None, resolution: tuple[int, int], fps: int, rotate: int, countdown: int,
-                 savefile_prefix: str | None, save_joints: bool, save_bag: bool, show_rgb: bool, show_depth: bool, show_joint_video: bool,
+    def __init__(self, playback: bool, duration: float, playback_file: str | None,
+                 resolution: tuple[int, int], fps: int, flip: int, countdown: int, translation: (float, float, float),
+                 savefile_prefix: str | None, save_joints: bool, save_bag: bool,
+                 show_rgb: bool, show_depth: bool, show_joint_video: bool,
                  simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool):
         self.playback = playback
         self.duration = duration
         self.playback_file = playback_file
+
+        translation = np.array(translation)
+        self.transform = lambda m: m + translation if m[2] != 0 else m
+
+        """rotx, roty, rotz = rotation #tuple(map(lambda x: -x, rotation))
+        x_rot_mat = np.array([
+            [1,         0,          0],
+            [0, cos(rotx), -sin(rotx)],
+            [0, sin(rotx),  cos(rotx)]
+        ])
+        y_rot_mat = np.array([
+            [cos(roty),  0, sin(roty)],
+            [0,          1,         0],
+            [-sin(roty), 0, cos(roty)]
+        ])
+        z_rot_mat = np.array([
+            [cos(rotz), -sin(rotz), 0],
+            [sin(rotz),  cos(rotz), 0],
+            [0,          0,         1]
+        ])
+        rot_mat = x_rot_mat @ y_rot_mat @ z_rot_mat
+
+        if rotation == (0, 0, 0):
+            self.transform = lambda m: m + translation if m[2] != 0 else m
+        else:
+            self.transform = lambda m: rot_mat @ (m + translation) if m[2] != 0 else m"""
+
         self.resolution = resolution
         self.fps = fps
-        self.rotate = rotate
+        self.flip = flip
         self.countdown = countdown
         self.save_joints = save_joints
         self.save_bag = save_bag
@@ -52,8 +82,33 @@ class RGBDto3DPose:
 
         self.use_openpose = save_joints or show_joint_video
         self.colorizer = rs.colorizer()  # Create colorizer object
-        self.filename_bag = savefile_prefix + ".bag"
-        self.filename_joints = savefile_prefix + "_joints.pkl"
+
+        if playback and (duration is None or duration <= 0):
+            self.duration = float("inf")
+
+        # define (inverse) rotation function to call deprojection at the correct pixel
+        if flip in [-4, 0, 4]:  # no rotation
+            self.inverse_flip = lambda x, y: (round(x), round(y))
+            self.flip_3d_coord = lambda c: (c[0], c[1], c[2])
+        elif flip in [-3, 1]:  # left rotation
+            self.inverse_flip = lambda x, y: (resolution[0] - round(y), round(x))
+            self.flip_3d_coord = lambda c: (c[1], c[0], c[2])
+        elif flip in [-2, 2]:  # 180° rotation
+            self.inverse_flip = lambda x, y: (resolution[0] - round(x), resolution[1] - round(y))
+            self.flip_3d_coord = lambda c: (c[0], c[1], c[2])
+        elif flip in [-1, 3]:  # right rotation
+            self.inverse_flip = lambda x, y: (round(y), resolution[1] - round(x))
+            self.flip_3d_coord = lambda c: (c[1], c[0], c[2])
+        else:
+            raise ValueError("Rotation should be in range [-4, 4]")
+
+        if (save_bag or save_joints) and (savefile_prefix is None or savefile_prefix == ""):
+            raise ValueError("Provide prefix for saving files")
+        if playback and (playback_file is None or playback_file == ""):
+            raise ValueError("Provide playback file")
+
+        self.filename_bag = savefile_prefix + ".bag" if save_bag else ""
+        self.filename_joints = savefile_prefix + "_joints.pkl" if save_joints else ""
 
         if save_bag and os.path.exists(self.filename_bag):
             print(f"File {self.filename_bag} already exists. Proceeding will overwrite this file.")
@@ -66,30 +121,6 @@ class RGBDto3DPose:
             print(f"Proceed? y/[n]")
             if input().lower() != 'y':
                 exit()
-
-        if playback and (duration is None or duration <= 0):
-            self.duration = float("inf")
-
-        # define (inverse) rotation function to call deprojection at the correct pixel
-        if rotate in [-4, 0, 4]:  # no rotation
-            self.inverse_rotation = lambda x, y: (round(x), round(y))
-            self.rotate_3d_coord = lambda c: (c[0], c[1], c[2])
-        elif rotate in [-3, 1]:  # left rotation
-            self.inverse_rotation = lambda x, y: (resolution[0] - round(y), round(x))
-            self.rotate_3d_coord = lambda c: (c[1], c[0], c[2])
-        elif rotate in [-2, 2]:  # 180° rotation
-            self.inverse_rotation = lambda x, y: (resolution[0] - round(x), resolution[1] - round(y))
-            self.rotate_3d_coord = lambda c: (c[0], c[1], c[2])
-        elif rotate in [-1, 3]:  # right rotation
-            self.inverse_rotation = lambda x, y: (round(y), resolution[1] - round(x))
-            self.rotate_3d_coord = lambda c: (c[1], c[0], c[2])
-        else:
-            raise ValueError("Rotation should be in range [-4, 4]")
-
-        if (save_bag or save_joints) and (savefile_prefix is None or savefile_prefix == ""):
-            raise ValueError("Provide prefix for saving files")
-        if playback and (playback_file is None or playback_file == ""):
-            raise ValueError("Provide playback file")
 
         if show_rgb:
             cv2.namedWindow("RGB-Stream", cv2.WINDOW_AUTOSIZE)
@@ -202,8 +233,8 @@ class RGBDto3DPose:
         depth_image = np.asanyarray(depth_color_frame.get_data())
         color_image = np.asanyarray(color_frame.get_data())
 
-        depth_image = np.rot90(depth_image, k=self.rotate)
-        color_image = np.rot90(color_image, k=self.rotate)
+        depth_image = np.rot90(depth_image, k=self.flip)
+        color_image = np.rot90(color_image, k=self.flip)
 
         if self.show_rgb:
             cv2.imshow("RGB-Stream", draw_pixel_grid(color_image))
@@ -218,6 +249,7 @@ class RGBDto3DPose:
                     joints[i] = (0, 0)
             joints = self.get_3d_coords(joints, depth_frame)
             joints_val = self.validate_joints(joints, confidences)
+            joints_val = np.apply_along_axis(self.transform, 1, joints_val)
 
             if self.simulate:
                 # self.main_conn.send(joints_val)
@@ -236,12 +268,12 @@ class RGBDto3DPose:
 
         for i, (x, y) in enumerate(joints):
             try:
-                x, y = self.inverse_rotation(x, y)
+                x, y = self.inverse_flip(x, y)
                 depth = depths.get_distance(x, y)
 
                 # get 3d coordinates and reorder them from y,x,z to x,y,z
                 coord = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x, y), depth=depth)
-                coords[i] = self.rotate_3d_coord(coord)  # coord[1], coord[0], coord[2]
+                coords[i] = self.flip_3d_coord(coord)  # coord[1], coord[0], coord[2]
             except RuntimeError:  # joint outside of picture
                 pass
 
@@ -313,10 +345,11 @@ class RGBDto3DPose:
 
 
 def stream(savefile_prefix: str | None = None, save_joints: bool = False, save_bag: bool = False, duration: float = float("inf"),
-           resolution: tuple[int, int] = (480, 270), fps: int = 30, rotate: int = 1, countdown: int = 3,
+           resolution: tuple[int, int] = (480, 270), fps: int = 30, rotate: int = 1, countdown: int = 3, translation=(0, 0, 0),
            show_rgb: bool = False, show_depth: bool = True, show_joint_video: bool = True,
            simulate_limbs: bool = True, simulate_joints: bool = True, simulate_joint_connections: bool = True):
-    cl = RGBDto3DPose(playback=False, duration=duration, playback_file=None, resolution=resolution, fps=fps, rotate=rotate, countdown=countdown,
+    cl = RGBDto3DPose(playback=False, duration=duration, playback_file=None,
+                      resolution=resolution, fps=fps, flip=rotate, countdown=countdown, translation=translation,
                       savefile_prefix=savefile_prefix, save_joints=save_joints, save_bag=save_bag,
                       show_rgb=show_rgb, show_depth=show_depth, show_joint_video=show_joint_video,
                       simulate_limbs=simulate_limbs, simulate_joints=simulate_joints, simulate_joint_connections=simulate_joint_connections)
@@ -324,10 +357,11 @@ def stream(savefile_prefix: str | None = None, save_joints: bool = False, save_b
 
 
 def playback(playback_file: str, savefile_prefix: str | None = None, save_joints: bool = False, save_bag: bool = False, duration: float = -1,
-             resolution: tuple[int, int] = (480, 270), fps: int = 30, rotate: int = 1,
+             resolution: tuple[int, int] = (480, 270), fps: int = 30, rotate: int = 1,  translation=(0, 0, 0),
              show_rgb: bool = False, show_depth: bool = True, show_joint_video: bool = True,
              simulate_limbs: bool = True, simulate_joints: bool = True, simulate_joint_connections: bool = True):
-    cl = RGBDto3DPose(playback=True, duration=duration, playback_file=playback_file, resolution=resolution, fps=fps, rotate=rotate, countdown=0,
+    cl = RGBDto3DPose(playback=True, duration=duration, playback_file=playback_file,
+                      resolution=resolution, fps=fps, flip=rotate, countdown=0, translation=translation,
                       savefile_prefix=savefile_prefix, save_joints=save_joints, save_bag=save_bag,
                       show_rgb=show_rgb, show_depth=show_depth, show_joint_video=show_joint_video,
                       simulate_limbs=simulate_limbs, simulate_joints=simulate_joints, simulate_joint_connections=simulate_joint_connections)
@@ -335,7 +369,10 @@ def playback(playback_file: str, savefile_prefix: str | None = None, save_joints
 
 
 if __name__ == '__main__':
-    playback("test.bag", save_joints=True, savefile_prefix="vid", simulate_limbs = False, simulate_joints = False, simulate_joint_connections = False)
-    # playback("test.bag")
+    cam_translation = (0, 1.5, -1.5)    # from (x,y,z) = (0,0,0) in m
+    cam_rotation = (0, 0, 0)   # from pointing parallel to z-axis, (x-rotation [up/down], y-rotation [left/right], z-rotation/tilt [anti-clockwise, clockwise]), in radians
+
+    # playback("test.bag", save_joints=True, savefile_prefix="vid", simulate_limbs = False, simulate_joints = False, simulate_joint_connections = False)
+    playback("test.bag", translation=cam_translation, simulate_joint_connections=False)
 
     # mmlab

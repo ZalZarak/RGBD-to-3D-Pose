@@ -327,6 +327,7 @@ def simulate_sync(joints_sync, ready, done, simulate_shape: bool, simulate_joint
     sim = Simulator(simulate_shape, simulate_joints, simulate_joint_connections, joints_sync, ready, done)
     sim.run_sync()
 
+
 def simulate_playback(simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool, playback_file: str, realtime: bool):
     sim = Simulator(simulate_limbs, simulate_joints, simulate_joint_connections, playback_file=playback_file)
     sim.run_playback(realtime)
