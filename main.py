@@ -190,6 +190,13 @@ class RGBDto3DPose:
         # Enable both depth and color streams
         config.enable_stream(rs.stream.depth, self.resolution[0], self.resolution[1], rs.format.z16, self.fps)
         config.enable_stream(rs.stream.color, self.resolution[0], self.resolution[1], rs.format.bgr8, self.fps)
+        self.align = rs.align(rs.stream.color)
+        self.decimation_filter = rs.decimation_filter()
+        self.depth2disparity = rs.disparity_transform(True)
+        self.spatial_filter = rs.spatial_filter()
+        self.temporal_filter = rs.temporal_filter()
+        self.disparity2depth = rs.disparity_transform(False)
+        self.hole_filling_filter = rs.hole_filling_filter(2)
 
         if self.save_bag:
             config.enable_record_to_file(self.filename_bag)
@@ -208,10 +215,18 @@ class RGBDto3DPose:
 
     def process_frame(self):
         # Wait for the next set of frames from the camera
+        # self.align = rs.align(rs.stream.color)
         frames = self.pipeline.wait_for_frames()
+        frames = self.align.process(frames)
 
         # Get depth frame
         depth_frame = frames.get_depth_frame()
+        # depth_frame = self.decimation_filter.process(depth_frame)
+        depth_frame = self.depth2disparity.process(depth_frame)
+        depth_frame = self.spatial_filter.process(depth_frame)
+        depth_frame = self.temporal_filter.process(depth_frame)
+        depth_frame = self.disparity2depth.process(depth_frame)
+        depth_frame = self.hole_filling_filter.process(depth_frame)
         color_frame = frames.get_color_frame()
 
         # Colorize depth frame to jet colormap
@@ -361,6 +376,6 @@ if __name__ == '__main__':
     cam_rotation = (0, 0, 0)   # from pointing parallel to z-axis, (x-rotation [up/down], y-rotation [left/right], z-rotation/tilt [anti-clockwise, clockwise]), in radians
 
     # playback("test.bag", save_joints=True, savefile_prefix="vid", simulate_limbs = False, simulate_joints = False, simulate_joint_connections = False)
-    playback("test.bag", translation=cam_translation, simulate_joint_connections=False)
+    # playback("test.bag", translation=cam_translation, simulate_joint_connections=False, simulate_joints=False)
 
-    # mmlab
+    stream(translation=cam_translation, rotate=0, show_rgb=True, show_depth=True, show_joint_video=False, simulate_joints=False, simulate_joint_connections=False, simulate_limbs=False)
