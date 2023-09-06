@@ -73,20 +73,18 @@ class OpenPoseHandler:
 
         self.op_wrapper = op_wrapper
 
-    def push_frame(self, frame: np.ndarray, show_video: bool) -> np.ndarray:
+    def push_frame(self, frame: np.ndarray) -> (np.ndarray, any):
         _, encoded_image = cv2.imencode('.png', frame)
         frame = cv2.imdecode(encoded_image, 1)
 
         datum = op.Datum()
         datum.cvInputData = frame
         self.op_wrapper.emplaceAndPop(op.VectorDatum([datum]))
-        if show_video:
-            cv2.imshow("Joint-Stream", draw_pixel_grid(datum.cvOutputData))
 
         if datum.poseKeypoints is not None:
-            return datum.poseKeypoints
+            return datum.poseKeypoints, datum.cvOutputData
         else:
-            return np.zeros([1, op.getPoseNumberBodyParts(self.poseModel), 3])
+            return np.zeros([1, op.getPoseNumberBodyParts(self.poseModel), 3]), datum.cvOutputData
 
 
 if __name__ == '__main__':

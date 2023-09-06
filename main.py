@@ -26,7 +26,7 @@ class RGBDto3DPose:
     def __init__(self, playback: bool, duration: float, playback_file: str | None,
                  resolution: tuple[int, int], fps: int, flip: int, countdown: int, translation: (float, float, float),
                  savefile_prefix: str | None, save_joints: bool, save_bag: bool,
-                 show_rgb: bool, show_depth: bool, show_joint_video: bool,
+                 show_rgb: bool, show_depth: bool, show_joints: bool,
                  simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool):
         self.playback = playback
         self.duration = duration
@@ -66,9 +66,9 @@ class RGBDto3DPose:
         self.save_bag = save_bag
         self.show_rgb = show_rgb
         self.show_depth = show_depth
-        self.show_joint_video = show_joint_video
+        self.show_joints = show_joints
 
-        self.use_openpose = save_joints or show_joint_video
+        self.use_openpose = save_joints or show_joints
         self.colorizer = rs.colorizer()  # Create colorizer object
 
         if playback and (duration is None or duration <= 0):
@@ -77,16 +77,16 @@ class RGBDto3DPose:
         # define (inverse) rotation function to call deprojection at the correct pixel
         if flip in [-4, 0, 4]:  # no rotation
             self.inverse_flip = lambda x, y: (round(x), round(y))
-            self.flip_3d_coord = lambda c: (c[0], c[1], c[2])
+            self.flip_3d_coord = lambda c: (c[0], -c[1], c[2])
         elif flip in [-3, 1]:  # left rotation
             self.inverse_flip = lambda x, y: (resolution[0] - round(y), round(x))
             self.flip_3d_coord = lambda c: (c[1], c[0], c[2])
         elif flip in [-2, 2]:  # 180° rotation
             self.inverse_flip = lambda x, y: (resolution[0] - round(x), resolution[1] - round(y))
-            self.flip_3d_coord = lambda c: (c[0], c[1], c[2])
+            self.flip_3d_coord = lambda c: (-c[0], c[1], c[2])
         elif flip in [-1, 3]:  # right rotation
             self.inverse_flip = lambda x, y: (round(y), resolution[1] - round(x))
-            self.flip_3d_coord = lambda c: (c[1], c[0], c[2])
+            self.flip_3d_coord = lambda c: (-c[1], -c[0], c[2])
         else:
             raise ValueError("Rotation should be in range [-4, 4]")
 
@@ -114,8 +114,6 @@ class RGBDto3DPose:
             cv2.namedWindow("RGB-Stream", cv2.WINDOW_AUTOSIZE)
         if show_depth:
             cv2.namedWindow("Depth-Stream", cv2.WINDOW_AUTOSIZE)
-        if show_joint_video:
-            cv2.namedWindow("Joint-Stream", cv2.WINDOW_AUTOSIZE)
 
         self.intrinsics = None
         self.pipeline = None
@@ -208,6 +206,8 @@ class RGBDto3DPose:
             print_countdown(self.countdown)
             rs.recorder.resume(recorder)
         else:
+            if self.countdown > 0:
+                print_countdown(self.countdown)
             pipeline_profile = pipeline.start(config)
 
         self.intrinsics = pipeline_profile.get_stream(rs.stream.depth).as_video_stream_profile().get_intrinsics()
@@ -239,19 +239,18 @@ class RGBDto3DPose:
         depth_image = np.rot90(depth_image, k=self.flip)
         color_image = np.rot90(color_image, k=self.flip)
 
-        if self.show_rgb:
-            cv2.imshow("RGB-Stream", draw_pixel_grid(color_image))
-        if self.show_depth:
-            cv2.imshow("Depth-Stream", draw_pixel_grid(depth_image))
         if self.use_openpose:
             # get joints from OpenPose. Assume there is only one person
-            res = self.openpose_handler.push_frame(color_image, self.show_joint_video)[0]
-            joints, confidences = res[:, :2], res[:, 2]
-            for i, c in enumerate(confidences):
-                if c < 0.85:
-                    joints[i] = (0, 0)
+            res, joint_image = self.openpose_handler.push_frame(color_image)
+            joints, confidences = res[0, :, :2], res[0, :, 2]
+
+            if self.show_rgb:
+                helper.show("RGB-Stream", joint_image if self.show_joints else color_image)
+            if self.show_depth:
+                helper.show("Depth-Stream", depth_image, joints if self.show_joints else None)
+
             joints = self.get_3d_coords(joints, depth_frame)
-            joints_val = self.validate_joints(joints, confidences)
+            joints_val = joints#self.validate_joints(joints, confidences)
             joints_val = np.apply_along_axis(self.transform, 1, joints_val)
 
             if self.simulate:
@@ -264,6 +263,11 @@ class RGBDto3DPose:
                 # visualize_points(joints_val, OpenPoseHandler.pairs, joints)
                 visualize(joints, OpenPoseHandler.pairs)
             self.count += 1"""
+        else:
+            if self.show_rgb:
+                helper.show("RGB-Stream", color_image)
+            if self.show_depth:
+                cv2.imshow("Depth-Stream", depth_image)
 
     def get_3d_coords(self, joints: np.ndarray, depth_frame) -> np.ndarray:
         depths = depth_frame.as_depth_frame()
@@ -348,34 +352,36 @@ class RGBDto3DPose:
 
 
 def stream(savefile_prefix: str | None = None, save_joints: bool = False, save_bag: bool = False, duration: float = float("inf"),
-           resolution: tuple[int, int] = (480, 270), fps: int = 30, rotate: int = 1, countdown: int = 3, translation=(0, 0, 0),
-           show_rgb: bool = False, show_depth: bool = True, show_joint_video: bool = True,
+           resolution: tuple[int, int] = (480, 270), fps: int = 30, rotate: int = 1, countdown: int = 0, translation=(0, 0, 0),
+           show_rgb: bool = True, show_depth: bool = True, show_joints: bool = True,
            simulate_limbs: bool = True, simulate_joints: bool = True, simulate_joint_connections: bool = True):
     cl = RGBDto3DPose(playback=False, duration=duration, playback_file=None,
                       resolution=resolution, fps=fps, flip=rotate, countdown=countdown, translation=translation,
                       savefile_prefix=savefile_prefix, save_joints=save_joints, save_bag=save_bag,
-                      show_rgb=show_rgb, show_depth=show_depth, show_joint_video=show_joint_video,
+                      show_rgb=show_rgb, show_depth=show_depth, show_joints=show_joints,
                       simulate_limbs=simulate_limbs, simulate_joints=simulate_joints, simulate_joint_connections=simulate_joint_connections)
     cl.run()
 
 
 def playback(playback_file: str, savefile_prefix: str | None = None, save_joints: bool = False, save_bag: bool = False, duration: float = -1,
-             resolution: tuple[int, int] = (480, 270), fps: int = 30, rotate: int = 1,  translation=(0, 0, 0),
-             show_rgb: bool = False, show_depth: bool = True, show_joint_video: bool = True,
+             resolution: tuple[int, int] = (480, 270), fps: int = 30, rotate: int = 1, translation=(0, 0, 0),
+             show_rgb: bool = True, show_depth: bool = True, show_joints: bool = True,
              simulate_limbs: bool = True, simulate_joints: bool = True, simulate_joint_connections: bool = True):
     cl = RGBDto3DPose(playback=True, duration=duration, playback_file=playback_file,
                       resolution=resolution, fps=fps, flip=rotate, countdown=0, translation=translation,
                       savefile_prefix=savefile_prefix, save_joints=save_joints, save_bag=save_bag,
-                      show_rgb=show_rgb, show_depth=show_depth, show_joint_video=show_joint_video,
+                      show_rgb=show_rgb, show_depth=show_depth, show_joints=show_joints,
                       simulate_limbs=simulate_limbs, simulate_joints=simulate_joints, simulate_joint_connections=simulate_joint_connections)
     cl.run()
 
 
 if __name__ == '__main__':
-    cam_translation = (0, 1.5, -1.5)    # from (x,y,z) = (0,0,0) in m
+    cam_translation = (0, 1.5, 0)    # from (x,y,z) = (0,0,0) in m
     cam_rotation = (0, 0, 0)   # from pointing parallel to z-axis, (x-rotation [up/down], y-rotation [left/right], z-rotation/tilt [anti-clockwise, clockwise]), in radians
 
     # playback("test.bag", save_joints=True, savefile_prefix="vid", simulate_limbs = False, simulate_joints = False, simulate_joint_connections = False)
-    # playback("test.bag", translation=cam_translation, simulate_joint_connections=False, simulate_joints=False)
+    playback("test.bag", translation=cam_translation, simulate_joint_connections=False, simulate_joints=False)
 
-    stream(translation=cam_translation, rotate=0, show_rgb=True, show_depth=True, show_joint_video=False, simulate_joints=False, simulate_joint_connections=False, simulate_limbs=False)
+    # stream(countdown=3, translation=cam_translation, rotate=2, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False, simulate_joint_connections=False, simulate_limbs=True)
+
+    # stream(translation=cam_translation, rotate=0, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False, simulate_joint_connections=False, simulate_limbs=True)
