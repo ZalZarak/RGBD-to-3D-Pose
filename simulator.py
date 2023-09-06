@@ -1,3 +1,4 @@
+import atexit
 from collections import deque
 import math
 import pickle
@@ -160,10 +161,14 @@ class Simulator:
             ready_sync.set()
 
     def run_sync(self):
-        while not self.done_sync.value:
-            joints = np.array(self.joints_sync).reshape([25, 3])
-            self.process_frame(joints)
-        p.disconnect()
+        try:
+            while not self.done_sync.value:
+                joints = np.array(self.joints_sync).reshape([25, 3])
+                self.process_frame(joints)
+            p.disconnect()
+        finally:
+            self.done_sync.value = True
+
 
     def run_playback(self, mode: int):
         """
@@ -345,6 +350,7 @@ def simulate_sync(joints_sync, ready, done, simulate_shape: bool, simulate_joint
 def simulate_playback(simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool, playback_file: str, mode: int):
     sim = Simulator(simulate_limbs, simulate_joints, simulate_joint_connections, playback_file=playback_file)
     sim.run_playback(mode)
+
 
 def simulate_single(simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool, joints: list[np.ndarray]):
     sim = Simulator(simulate_limbs, simulate_joints, simulate_joint_connections)

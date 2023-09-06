@@ -123,7 +123,7 @@ class RGBDto3DPose:
         self.simulate_limbs = simulate_limbs
         self.simulate_joints = simulate_joints
         self.simulate_joint_connections = simulate_joint_connections
-        self.done = None
+        self.done = mp.Value('b', False)
         self.joints = None
 
         self.joints_save = []
@@ -142,13 +142,12 @@ class RGBDto3DPose:
         self.start_time = time.time()
 
         try:
-            while key != 27 and frame_counter < max_frames:
+            while key != 27 and frame_counter < max_frames and not self.done.value:
                 self.process_frame()
 
                 key = cv2.waitKey(1)
         finally:
-            if self.done is not None:
-                self.done.value = True
+            self.done.value = True
             cv2.destroyAllWindows()
             self.pipeline.stop()
             if self.save_joints:
@@ -167,10 +166,9 @@ class RGBDto3DPose:
             ready.wait()"""
 
             ready = mp.Event()
-            self.done = mp.Value('b', False)
             self.joints = mp.Array('f', np.zeros([25 * 3]))
-            p = mp.Process(target=simulate_sync, args=(self.joints, ready, self.done, self.simulate_limbs, self.simulate_joints, self.simulate_joint_connections))
-            p.start()
+            simulator_process = mp.Process(target=simulate_sync, args=(self.joints, ready, self.done, self.simulate_limbs, self.simulate_joints, self.simulate_joint_connections))
+            simulator_process.start()
             ready.wait()
 
         # Initialize OpenPose Handler
@@ -380,8 +378,8 @@ if __name__ == '__main__':
     cam_rotation = (0, 0, 0)   # from pointing parallel to z-axis, (x-rotation [up/down], y-rotation [left/right], z-rotation/tilt [anti-clockwise, clockwise]), in radians
 
     # playback("test.bag", save_joints=True, savefile_prefix="vid", simulate_limbs = False, simulate_joints = False, simulate_joint_connections = False)
-    playback("test.bag", translation=cam_translation, simulate_joint_connections=False, simulate_joints=False)
+    # playback("test.bag", translation=cam_translation, simulate_joint_connections=False, simulate_joints=False)
 
     # stream(countdown=3, translation=cam_translation, rotate=2, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False, simulate_joint_connections=False, simulate_limbs=True)
 
-    # stream(translation=cam_translation, rotate=0, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False, simulate_joint_connections=False, simulate_limbs=True)
+    stream(translation=cam_translation, rotate=0, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False, simulate_joint_connections=False, simulate_limbs=True)
