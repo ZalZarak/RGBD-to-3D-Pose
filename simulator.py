@@ -4,6 +4,7 @@ import pickle
 import time
 from math import sqrt
 
+import cv2
 import numpy as np
 import pybullet as p
 import pybullet_data
@@ -41,6 +42,8 @@ lengths = {
     "head": 0.8
 }
 
+default_direction = np.array([0, 0, 1])
+
 class Simulator:
 
     # TODO: Collision shapes: Dont forget to activate/deactivate
@@ -59,7 +62,7 @@ class Simulator:
         physicsClient = p.connect(p.GUI)
 
         # Set the camera position and orientation
-        p.resetDebugVisualizerCamera(cameraDistance=2.5, cameraYaw=45, cameraPitch=-45,
+        p.resetDebugVisualizerCamera(cameraDistance=2.5, cameraYaw=0, cameraPitch=-10,
                                      cameraTargetPosition=[0, 0, 0])
 
         if simulate_limbs:
@@ -162,22 +165,39 @@ class Simulator:
             self.process_frame(joints)
         p.disconnect()
 
-    def run_playback(self, realtime: bool):
+    def run_playback(self, mode: int):
+        """
+
+        :param mode: 0: normal, 1: realtime, 2: step-by-step
+        :return:
+        """
         with open(self.playback_file, 'rb') as file:
             frames: [(float, np.ndarray)] = pickle.load(file)
 
-        if realtime:
+        if mode == 1:
             frames = deque(frames)
             start = time.time()
             try:
                 while True:
                     t, joints = frames.popleft()
                     while t < time.time() - start:
-                        t, joints = frames.pop()
+                        # t, joints = frames.pop()
+                        t, joints = frames.popleft()
                     self.process_frame(joints)
             except IndexError:
                 pass
-
+        elif mode == 2:
+            print("Press any key to simulate one frame. Press q to terminate")
+            frames = deque(frames)
+            try:
+                while True:
+                    key = input()
+                    if key == "q":
+                        break
+                    t, joints = frames.popleft()
+                    self.process_frame(joints)
+            except IndexError:
+                pass
         else:
             start = time.time()
             c = 0
@@ -212,18 +232,16 @@ class Simulator:
                 midpoint = (coord1 + coord2) / 2
 
                 direction = coord2 - coord1
-                current_direction = self.limbs_directions[limb]
 
                 # Calculate the orientation quaternion
-                rotation_axis = np.cross(current_direction, direction)
-                rotation_angle = np.arccos(np.dot(current_direction, direction) / (np.linalg.norm(current_direction) * np.linalg.norm(direction)))
+                rotation_axis = np.cross(default_direction, direction)
+                rotation_angle = np.arccos(np.dot(default_direction, direction) / (np.linalg.norm(default_direction) * np.linalg.norm(direction)))
+                """print(f"Input: {np.dot(default_direction, direction) / (np.linalg.norm(default_direction) * np.linalg.norm(direction))}")
+                print(f"Angle: {rotation_angle}")"""
                 orientation = p.getQuaternionFromAxisAngle(rotation_axis, rotation_angle)
 
                 # Update existing cylinder's properties
                 p.resetBasePositionAndOrientation(limb_id, midpoint, orientation)
-
-                # Save direction for next time
-                self.limbs_directions[limb] = direction
 
             p.changeVisualShape(limb_id, -1, rgbaColor=[0, 0, 0.9, 0.5])
 
@@ -319,27 +337,61 @@ def limb_coords_generator(joints: np.ndarray):
     p.disconnect()"""
 
 
-"""def visualize_single(joints: np.ndarray):
-    vis = Visualizer()
-    vis.move_limbs(convert_openpose_coords(joints))
-    visualize_points(joints, pairs)
-    while True:
-        p.stepSimulation()
-    p.disconnect()"""
-
-
 def simulate_sync(joints_sync, ready, done, simulate_shape: bool, simulate_joints: bool, simulate_joint_connections: bool):
     sim = Simulator(simulate_shape, simulate_joints, simulate_joint_connections, joints_sync, ready, done)
     sim.run_sync()
 
 
-def simulate_playback(simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool, playback_file: str, realtime: bool):
+def simulate_playback(simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool, playback_file: str, mode: int):
     sim = Simulator(simulate_limbs, simulate_joints, simulate_joint_connections, playback_file=playback_file)
-    sim.run_playback(realtime)
+    sim.run_playback(mode)
+
+def simulate_single(simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool, joints: list[np.ndarray]):
+    sim = Simulator(simulate_limbs, simulate_joints, simulate_joint_connections)
+
+    print("Press any key to simulate one frame. Press q to terminate")
+    frames = deque(joints)
+    try:
+        while True:
+            key = input()
+            if key == "q":
+                break
+            joints = frames.popleft()
+            sim.process_frame(joints)
+    except IndexError:
+        pass
 
 
 if __name__ == '__main__':
-    point_list = np.array([
+    point_list1 = np.array([
+        [0.00, 1.90, 1.00],  # Nose
+        [0.00, 1.80, 1.00],  # Neck
+        [-0.10, 1.80, 1.00],  # RightShoulder
+        [-0.20, 1.30, 1.00],  # RightElbow
+        [-0.30, 0.90, 1.00],  # RightWrist
+        [0.10, 1.80, 1.00],  # LeftShoulder
+        [0.20, 1.30, 1.00],  # LeftElbow
+        [0.30, 0.90, 1.00],  # LeftWrist
+        [0.00, 1.20, 1.00],  # MidHip
+        [-0.10, 1.20, 1.00],  # RightHip
+        [-0.10, 0.65, 1.00],  # RightKnee
+        [-0.10, -0.01, 1.00],  # RightAnkle
+        [0.10, 1.20, 1.00],  # LeftHip
+        [0.10, 0.65, 1.00],  # LeftKnee
+        [0.10, -0.01, 1.00],  # LeftAnkle
+        [-0.02, 1.91, 1.00],  # RightEye
+        [0.02, 1.91, 1.00],  # LeftEye
+        [-0.04, 1.89, 1.00],  # RightEar
+        [0.04, 1.89, 1.00],  # LeftEar
+        [0.12, -0.01, 1.01],  # LeftBigToe
+        [0.14, -0.01, 1.01],  # LeftSmallToe
+        [0.11, -0.03, .99],  # LeftHeel
+        [-0.12, - .01, 1.01],  # RightBigToe
+        [- .14, - .01, 1.01],  # RightSmallToe
+        [- .11, - .03, .99],  # RightHeel
+    ])
+
+    point_list2 = np.array([
         [0.00, 1.90, 1.00],  # Nose
         [0.00, 1.80, 1.00],  # Neck
         [-0.10, 1.80, 1.00],  # RightShoulder
@@ -367,4 +419,33 @@ if __name__ == '__main__':
         [- .11, - .03, .99],  # RightHeel
     ])
 
-    simulate_playback(True, False, False, "vid_joints.pkl", False)
+    point_list3 = np.array([
+        [0.00, 1.90, 1.00],  # Nose
+        [0.00, 1.80, 1.00],  # Neck
+        [-0.10, 1.80, 1.00],  # RightShoulder
+        [-0.20, 1.30, 1.00],  # RightElbow
+        [-0.30, 0.90, 1.00],  # RightWrist
+        [0.10, 1.80, 1.00],  # LeftShoulder
+        [0.20, 1.30, 1.00],  # LeftElbow
+        [0.50, 0.90, 0.50],  # LeftWrist
+        [0.00, 1.20, 1.00],  # MidHip
+        [-0.10, 1.20, 1.00],  # RightHip
+        [-0.10, 0.65, 1.00],  # RightKnee
+        [-0.10, -0.01, 1.00],  # RightAnkle
+        [0.10, 1.20, 1.00],  # LeftHip
+        [0.10, 0.65, 1.00],  # LeftKnee
+        [0.10, -0.01, 1.00],  # LeftAnkle
+        [-0.02, 1.91, 1.00],  # RightEye
+        [0.02, 1.91, 1.00],  # LeftEye
+        [-0.04, 1.89, 1.00],  # RightEar
+        [0.04, 1.89, 1.00],  # LeftEar
+        [0.12, -0.01, 1.01],  # LeftBigToe
+        [0.14, -0.01, 1.01],  # LeftSmallToe
+        [0.11, -0.03, .99],  # LeftHeel
+        [-0.12, - .01, 1.01],  # RightBigToe
+        [- .14, - .01, 1.01],  # RightSmallToe
+        [- .11, - .03, .99],  # RightHeel
+    ])
+
+    # simulate_single(True, True, True, [point_list1, point_list2, point_list3])
+    simulate_playback(True, False, False, "test_joints.pkl", 1)
