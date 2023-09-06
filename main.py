@@ -350,11 +350,11 @@ class RGBDto3DPose:
 
 
 def stream(savefile_prefix: str | None = None, save_joints: bool = False, save_bag: bool = False, duration: float = float("inf"),
-           resolution: tuple[int, int] = (480, 270), fps: int = 30, rotate: int = 1, countdown: int = 0, translation=(0, 0, 0),
+           resolution: tuple[int, int] = (480, 270), fps: int = 30, flip: int = 1, countdown: int = 0, translation=(0, 0, 0),
            show_rgb: bool = True, show_depth: bool = True, show_joints: bool = True,
            simulate_limbs: bool = True, simulate_joints: bool = True, simulate_joint_connections: bool = True):
     cl = RGBDto3DPose(playback=False, duration=duration, playback_file=None,
-                      resolution=resolution, fps=fps, flip=rotate, countdown=countdown, translation=translation,
+                      resolution=resolution, fps=fps, flip=flip, countdown=countdown, translation=translation,
                       savefile_prefix=savefile_prefix, save_joints=save_joints, save_bag=save_bag,
                       show_rgb=show_rgb, show_depth=show_depth, show_joints=show_joints,
                       simulate_limbs=simulate_limbs, simulate_joints=simulate_joints, simulate_joint_connections=simulate_joint_connections)
@@ -362,11 +362,11 @@ def stream(savefile_prefix: str | None = None, save_joints: bool = False, save_b
 
 
 def playback(playback_file: str, savefile_prefix: str | None = None, save_joints: bool = False, save_bag: bool = False, duration: float = -1,
-             resolution: tuple[int, int] = (480, 270), fps: int = 30, rotate: int = 1, translation=(0, 0, 0),
+             resolution: tuple[int, int] = (480, 270), fps: int = 30, flip: int = 1, translation=(0, 0, 0),
              show_rgb: bool = True, show_depth: bool = True, show_joints: bool = True,
              simulate_limbs: bool = True, simulate_joints: bool = True, simulate_joint_connections: bool = True):
     cl = RGBDto3DPose(playback=True, duration=duration, playback_file=playback_file,
-                      resolution=resolution, fps=fps, flip=rotate, countdown=0, translation=translation,
+                      resolution=resolution, fps=fps, flip=flip, countdown=0, translation=translation,
                       savefile_prefix=savefile_prefix, save_joints=save_joints, save_bag=save_bag,
                       show_rgb=show_rgb, show_depth=show_depth, show_joints=show_joints,
                       simulate_limbs=simulate_limbs, simulate_joints=simulate_joints, simulate_joint_connections=simulate_joint_connections)
@@ -382,4 +382,4 @@ if __name__ == '__main__':
 
     # stream(countdown=3, translation=cam_translation, rotate=2, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False, simulate_joint_connections=False, simulate_limbs=True)
 
-    stream(translation=cam_translation, rotate=0, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False, simulate_joint_connections=False, simulate_limbs=True)
+    stream(translation=cam_translation, flip=0, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False, simulate_joint_connections=False, simulate_limbs=True)
