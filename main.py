@@ -1,3 +1,4 @@
+import math
 import os
 import pickle
 import time
@@ -7,18 +8,35 @@ import cv2
 import numpy as np
 import pyrealsense2 as rs
 from cfonts import render as render_text
-from math import sin, cos
+from math import sin, cos, sqrt
 
 import helper
 import pybullet_simulation as sim
 from helper import print_countdown, draw_pixel_grid
 from old.main import visualize_points
 from openpose_handler import OpenPoseHandler
-from simulator import simulate_sync, lengths
+from simulator import simulate_sync
 
 import multiprocessing as mp
 
 
+lengths = {
+    "neck-nose": 0.22,
+    "neck-eye": 0.26,
+    "neck-ear": 0.23,
+    "nose-eye": 0.07,
+    "eye-ear": 0.13,
+    "neck-shoulder": 0.19,
+    "shoulder-elbow": 0.33,
+    "elbow-wrist": 0.29,
+    "neck-midhip": 0.52,
+    "midhip-hip": 0.13,
+    "neck-hip": sqrt(0.52**2 + 0.13**2),
+    "hip-knee": 0.42,
+    "knee-foot": 0.46,
+    "foot-heel": 0.07,
+    "foot-toe": 0.2
+}
 
 class RGBDto3DPose:
     count = 0
@@ -258,11 +276,11 @@ class RGBDto3DPose:
                 helper.show("Depth-Stream", depth_image, joints if self.show_joints else None)
 
             joints = self.get_3d_coords(joints, depth_frame)
-            joints_val = joints#self.validate_joints(joints, confidences)
+            joints_val = self.validate_joints(joints, confidences)
             joints_val = np.apply_along_axis(self.transform, 1, joints_val)
 
             if self.simulate:
-                # self.main_conn.send(joints_val)
+
                 self.joints[:] = joints_val.flatten()
             if self.save_joints:
                 self.joints_save.append((time.time() - self.start_time, joints_val))
@@ -275,7 +293,7 @@ class RGBDto3DPose:
             if self.show_rgb:
                 helper.show("RGB-Stream", color_image)
             if self.show_depth:
-                cv2.imshow("Depth-Stream", depth_image)
+                helper.show("Depth-Stream", depth_image)
 
     def get_3d_coords(self, joints: np.ndarray, depth_frame) -> np.ndarray:
         depths = depth_frame.as_depth_frame()
@@ -308,43 +326,41 @@ class RGBDto3DPose:
         # If depth is wrong, then the length of limbs should be incorrect or the depth deviation is too high
 
         # The upper body should have correct length and have approximately the same depth
-        # torso
-        val[1, 8] = val[8, 1] = val_length(joints[1], joints[8], lengths["torso"]) and val_depth(joints[1], joints[8])
-        # neck
-        val[0, 1] = val[1, 0] = val_length(joints[1], joints[0], lengths["neck"]) and val_depth(joints[1], joints[0])
-        # shoulderL
-        val[1, 2] = val[2, 1] = val_length(joints[1], joints[2], lengths["shoulder"]) and val_depth(joints[1], joints[2])
-        # shoulderR
-        val[1, 5] = val[5, 1] = val_length(joints[1], joints[5], lengths["shoulder"]) and val_depth(joints[1], joints[5])
-        # hipL
-        val[8, 9] = val[9, 8] = val_length(joints[8], joints[9], lengths["hip"]) and val_depth(joints[8], joints[9])
-        # hipR
-        val[8, 12] = val[12, 8] = val_length(joints[8], joints[12], lengths["hip"]) and val_depth(joints[8], joints[12])
+        # neck-midhip
+        val[1, 8] = val[8, 1] = val_length(joints[1], joints[8], lengths["neck-midhip"]) and val_depth(joints[1], joints[8])
+        # neck-nose
+        val[0, 1] = val[1, 0] = val_length(joints[0], joints[1], lengths["neck-nose"]) and val_depth(joints[0], joints[1])
+        # neck-shoulder
+        val[1, 2] = val[2, 1] = val_length(joints[1], joints[2], lengths["neck-shoulder"]) and val_depth(joints[1], joints[2])
+        val[1, 5] = val[5, 1] = val_length(joints[1], joints[5], lengths["neck-shoulder"]) and val_depth(joints[1], joints[5])
+        # midhip-hip
+        val[8, 9] = val[9, 8] = val_length(joints[8], joints[9], lengths["midhip-hip"]) and val_depth(joints[8], joints[9])
+        val[8, 12] = val[12, 8] = val_length(joints[8], joints[12], lengths["midhip-hip"]) and val_depth(joints[8], joints[12])
 
-        # head
-        for i, j in [(0, 15), (0, 16), (15, 17), (16, 17)]:  # half head length
-            val[i, j] = val[j, i] = val_length(joints[i], joints[j], lengths["head"] / 2, 0.4) and val_depth(joints[8], joints[12], 0.4)
-        for i, j in [(0, 17), (0, 18)]:  # head length
-            val[i, j] = val[j, i] = val_length(joints[i], joints[j], lengths["head"], 0.4) and val_depth(joints[8], joints[12], 0.4)
-        for i, j in [(17, 18)]:  # double head length
-            val[i, j] = val[j, i] = val_length(joints[i], joints[j], lengths["head"] * 2, 0.6) and val_depth(joints[8], joints[12], 0.6)
+        # nose-eye
+        val[0, 15] = val[15, 0] = val_length(joints[0], joints[15], lengths["nose-eye"]) and val_depth(joints[0], joints[15])
+        val[0, 16] = val[16, 0] = val_length(joints[0], joints[16], lengths["nose-eye"]) and val_depth(joints[0], joints[16])
+        # eye-ear
+        val[15, 17] = val[17, 15] = val_length(joints[15], joints[17], lengths["eye-ear"]) and val_depth(joints[15], joints[17])
+        val[16, 18] = val[18, 16] = val_length(joints[16], joints[18], lengths["eye-ear"]) and val_depth(joints[16], joints[18])
 
         # no depth because arm and leg very flexible
-        # upper arm
-        for i, j in [(2, 3), (5, 6)]:
-            val[i, j] = val[j, i] = val_length(joints[i], joints[j], lengths["arm"])
-        # lower arm
-        for i, j in [(3, 4), (6, 7)]:
-            val[i, j] = val[j, i] = val_length(joints[i], joints[j], lengths["forearm"])
-        # thigh
-        for i, j in [(9, 10), (12, 13)]:
-            val[i, j] = val[j, i] = val_length(joints[i], joints[j], lengths["thigh"])
-        # leg
-        for i, j in [(10, 11), (13, 14)]:
-            val[i, j] = val[j, i] = val_length(joints[i], joints[j], lengths["leg"])
-        # foot
-        for i, j in [(11, 22), (14, 19)]:
-            val[i, j] = val[j, i] = val_length(joints[i], joints[j], lengths["arm"])
+        # shoulder-elbow
+        val[2, 3] = val[3, 2] = val_length(joints[2], joints[3], lengths["shoulder-elbow"])
+        val[5, 6] = val[6, 5] = val_length(joints[5], joints[6], lengths["shoulder-elbow"])
+        # elbow-wrist
+        val[3, 4] = val[4, 3] = val_length(joints[3], joints[4], lengths["elbow-wrist"])
+        val[6, 7] = val[7, 6] = val_length(joints[6], joints[7], lengths["elbow-wrist"])
+        # hip-knee
+        val[9, 10] = val[10, 9] = val_length(joints[9], joints[10], lengths["hip-knee"])
+        val[12, 13] = val[13, 12] = val_length(joints[12], joints[13], lengths["hip-knee"])
+        # knee-foot
+        val[10, 11] = val[11, 10] = val_length(joints[10], joints[11], lengths["knee-foot"])
+        val[13, 14] = val[14, 13] = val_length(joints[13], joints[14], lengths["knee-foot"])
+        # foot-toe
+        val[11, 22] = val[22, 11] = val_length(joints[11], joints[22], lengths["foot-toe"])
+        val[14, 19] = val[19, 14] = val_length(joints[14], joints[19], lengths["foot-toe"])
+
         # 20, 21, 23, 24 emitted
 
         for i in range(25):
@@ -353,8 +369,8 @@ class RGBDto3DPose:
                 val_joints[i, 2] = 0
 
             # remove joints with low confidence
-            if confidences[i] < 0.5:
-                val_joints[i] = 0
+            """if confidences[i] < 0:
+                val_joints[i] = 0"""
 
         return val_joints
 

@@ -62,7 +62,7 @@ class OpenPoseHandler:
             "process_real_time": True,
             "number_people_max": 1,
             # "net_resolution": "-1x736"    # Multiples of 16. If it is increased, the accuracy potentially increases. If it is decreased, the speed increases. For maximum speed-accuracy balance, it should keep the closest aspect ratio possible to the images or videos to be processed. Using -1 in any of the dimensions, OP will choose the optimal aspect ratio depending on the user's input value.
-            # "hand_net_resolution": "240x240"
+            # "hand_net_resolution": "240x240",
             "render_pose": 1
         }
 
