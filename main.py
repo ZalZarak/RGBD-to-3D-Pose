@@ -209,6 +209,16 @@ class RGBDto3DPose:
             pipeline_profile = pipeline.start(config)
 
         self.intrinsics = pipeline_profile.get_stream(rs.stream.depth).as_video_stream_profile().get_intrinsics()
+
+        depth_sensor = pipeline_profile.get_device().first_depth_sensor()
+        for i in range(int(depth_sensor.get_option_range(rs.option.visual_preset).max)):
+            if depth_sensor.get_option_value_description(rs.option.visual_preset, i) == "High Density":
+                depth_sensor.set_option(rs.option.visual_preset, i)
+        depth_sensor.set_option(rs.option.exposure, 16000)
+        depth_sensor.set_option(rs.option.gain, 16)
+        depth_sensor.set_option(rs.option.laser_power, 360)
+        depth_sensor.set_option(rs.option.depth_units, 0.0005)
+
         self.pipeline = pipeline
 
     def process_frame(self):
