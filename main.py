@@ -21,16 +21,16 @@ import multiprocessing as mp
 
 
 lengths = {
-    "neck-nose": 0.22,
+    "neck-nose": 0.2,
     "neck-eye": 0.26,
     "neck-ear": 0.23,
-    "nose-eye": 0.07,
-    "eye-ear": 0.13,
+    "nose-eye": 0.05,
+    "eye-ear": 0.1,
     "neck-shoulder": 0.19,
-    "shoulder-elbow": 0.33,
+    "shoulder-elbow": 0.3,
     "elbow-wrist": 0.29,
     "neck-midhip": 0.52,
-    "midhip-hip": 0.13,
+    "midhip-hip": 0.11,
     "neck-hip": sqrt(0.52**2 + 0.13**2),
     "hip-knee": 0.42,
     "knee-foot": 0.46,
@@ -210,7 +210,7 @@ class RGBDto3DPose:
         self.spatial_filter = rs.spatial_filter()
         self.temporal_filter = rs.temporal_filter()
         self.disparity2depth = rs.disparity_transform(False)
-        self.hole_filling_filter = rs.hole_filling_filter(2)
+        self.hole_filling_filter = rs.hole_filling_filter(1)    # i feel like this is buggy
 
         if self.save_bag:
             config.enable_record_to_file(self.filename_bag)
@@ -312,9 +312,10 @@ class RGBDto3DPose:
 
         return coords
 
+
     def validate_joints(self, joints: np.ndarray, confidences: np.ndarray) -> np.ndarray:
-        def val_length(joint1: np.ndarray, joint2: np.ndarray, expected_length: float, deviation: float = 0.1) -> bool:
-            return expected_length - deviation <= np.linalg.norm(joint2 - joint1) <= expected_length + deviation
+        def val_length(joint1: np.ndarray, joint2: np.ndarray, expected_length: float, deviation_down: float = 0.2, deviation_up: float = 0.2) -> bool:
+            return expected_length - deviation_down <= np.linalg.norm(joint2 - joint1) <= expected_length + deviation_up
 
         def val_depth(joint1: np.ndarray, joint2: np.ndarray, deviation: float = 0.2) -> bool:
             return abs(joint1[2] - joint2[2]) <= deviation
@@ -327,39 +328,39 @@ class RGBDto3DPose:
 
         # The upper body should have correct length and have approximately the same depth
         # neck-midhip
-        val[1, 8] = val[8, 1] = val_length(joints[1], joints[8], lengths["neck-midhip"]) and val_depth(joints[1], joints[8])
+        val[1, 8] = val[8, 1] = val_length(joints[1], joints[8], lengths["neck-midhip"], 0.15, 0.075) and val_depth(joints[1], joints[8], 0.4)
         # neck-nose
-        val[0, 1] = val[1, 0] = val_length(joints[0], joints[1], lengths["neck-nose"]) and val_depth(joints[0], joints[1])
+        val[0, 1] = val[1, 0] = val_length(joints[0], joints[1], lengths["neck-nose"], 0.075, 0.075) and val_depth(joints[0], joints[1], 0.2)
         # neck-shoulder
-        val[1, 2] = val[2, 1] = val_length(joints[1], joints[2], lengths["neck-shoulder"]) and val_depth(joints[1], joints[2])
-        val[1, 5] = val[5, 1] = val_length(joints[1], joints[5], lengths["neck-shoulder"]) and val_depth(joints[1], joints[5])
+        val[1, 2] = val[2, 1] = val_length(joints[1], joints[2], lengths["neck-shoulder"], 0.04, 0.02) and val_depth(joints[1], joints[2], 0.17)
+        val[1, 5] = val[5, 1] = val_length(joints[1], joints[5], lengths["neck-shoulder"], 0.04, 0.02) and val_depth(joints[1], joints[5], 0.17)
         # midhip-hip
-        val[8, 9] = val[9, 8] = val_length(joints[8], joints[9], lengths["midhip-hip"]) and val_depth(joints[8], joints[9])
-        val[8, 12] = val[12, 8] = val_length(joints[8], joints[12], lengths["midhip-hip"]) and val_depth(joints[8], joints[12])
+        val[8, 9] = val[9, 8] = val_length(joints[8], joints[9], lengths["midhip-hip"], 0.03, 0.02) and val_depth(joints[8], joints[9], 0.09)
+        val[8, 12] = val[12, 8] = val_length(joints[8], joints[12], lengths["midhip-hip"], 0.03, 0.02) and val_depth(joints[8], joints[12], 0.09)
 
         # nose-eye
-        val[0, 15] = val[15, 0] = val_length(joints[0], joints[15], lengths["nose-eye"]) and val_depth(joints[0], joints[15])
-        val[0, 16] = val[16, 0] = val_length(joints[0], joints[16], lengths["nose-eye"]) and val_depth(joints[0], joints[16])
-        # eye-ear
-        val[15, 17] = val[17, 15] = val_length(joints[15], joints[17], lengths["eye-ear"]) and val_depth(joints[15], joints[17])
-        val[16, 18] = val[18, 16] = val_length(joints[16], joints[18], lengths["eye-ear"]) and val_depth(joints[16], joints[18])
+        val[0, 15] = val[15, 0] = val_length(joints[0], joints[15], lengths["nose-eye"], 0.02, 0.01) and val_depth(joints[0], joints[15], 0.04)
+        val[0, 16] = val[16, 0] = val_length(joints[0], joints[16], lengths["nose-eye"], 0.02, 0.01) and val_depth(joints[0], joints[16], 0.04)
+        # eye-ear: with this deviation down it will invalidate front view of face but make it robuster to occlusion. If front, eye detection should work
+        val[15, 17] = val[17, 15] = val_length(joints[15], joints[17], lengths["eye-ear"], 0.03, 0.02) and val_depth(joints[15], joints[17], 0.07)
+        val[16, 18] = val[18, 16] = val_length(joints[16], joints[18], lengths["eye-ear"], 0.03, 0.02) and val_depth(joints[16], joints[18], 0.07)
 
         # no depth because arm and leg very flexible
         # shoulder-elbow
-        val[2, 3] = val[3, 2] = val_length(joints[2], joints[3], lengths["shoulder-elbow"])
-        val[5, 6] = val[6, 5] = val_length(joints[5], joints[6], lengths["shoulder-elbow"])
+        val[2, 3] = val[3, 2] = val_length(joints[2], joints[3], lengths["shoulder-elbow"], 0.03, 0.06)
+        val[5, 6] = val[6, 5] = val_length(joints[5], joints[6], lengths["shoulder-elbow"], 0.03, 0.06)
         # elbow-wrist
-        val[3, 4] = val[4, 3] = val_length(joints[3], joints[4], lengths["elbow-wrist"])
-        val[6, 7] = val[7, 6] = val_length(joints[6], joints[7], lengths["elbow-wrist"])
-        # hip-knee
-        val[9, 10] = val[10, 9] = val_length(joints[9], joints[10], lengths["hip-knee"])
-        val[12, 13] = val[13, 12] = val_length(joints[12], joints[13], lengths["hip-knee"])
+        val[3, 4] = val[4, 3] = val_length(joints[3], joints[4], lengths["elbow-wrist"], 0.03, 0.03)
+        val[6, 7] = val[7, 6] = val_length(joints[6], joints[7], lengths["elbow-wrist"], 0.03, 0.03)
+        # hip-knee: very imprecise
+        val[9, 10] = val[10, 9] = val_length(joints[9], joints[10], lengths["hip-knee"], 0.04, 0.07)
+        val[12, 13] = val[13, 12] = val_length(joints[12], joints[13], lengths["hip-knee"], 0.04, 0.07)
         # knee-foot
-        val[10, 11] = val[11, 10] = val_length(joints[10], joints[11], lengths["knee-foot"])
-        val[13, 14] = val[14, 13] = val_length(joints[13], joints[14], lengths["knee-foot"])
+        val[10, 11] = val[11, 10] = val_length(joints[10], joints[11], lengths["knee-foot"], 0.02, 0.05)
+        val[13, 14] = val[14, 13] = val_length(joints[13], joints[14], lengths["knee-foot"], 0.02, 0.05)
         # foot-toe
         val[11, 22] = val[22, 11] = val_length(joints[11], joints[22], lengths["foot-toe"])
-        val[14, 19] = val[19, 14] = val_length(joints[14], joints[19], lengths["foot-toe"])
+        val[14, 19] = val[19, 14] = val_length(joints[14], joints[19], lengths["foot-toe"], 0.05, 0.01)
 
         # 20, 21, 23, 24 emitted
 
@@ -371,6 +372,34 @@ class RGBDto3DPose:
             # remove joints with low confidence
             """if confidences[i] < 0:
                 val_joints[i] = 0"""
+
+        # reduce head to nose
+        if all(val_joints[0] == 0):  # nose not detected
+            if val_joints[15, 2] != 0 and val_joints[16, 2] != 0:   # both eyes validated
+                val_joints[0] = (val_joints[15] + val_joints[16])/2
+            elif val_joints[15, 2] != 0:    # one eye validated
+                val_joints[0] = val_joints[15]
+            elif val_joints[16, 2] != 0:    # one eye validated
+                val_joints[0] = val_joints[16]
+            elif val_joints[17, 2] != 0 and val_joints[18, 2] != 0:  # both ears validated
+                val_joints[0] = (val_joints[17] + val_joints[18])/2
+            elif val_joints[17, 2] != 0:  # one ear validated
+                val_joints[0] = val_joints[17]
+            elif val_joints[18, 2] != 0:  # one ear validated
+                val_joints[0] = val_joints[18]
+        elif val_joints[0, 2] == 0:  # nose not validated
+            if val_joints[15, 2] != 0 and val_joints[16, 2] != 0:   # both eyes validated
+                val_joints[0, 2] = (val_joints[15, 2] + val_joints[16, 2])/2
+            elif val_joints[15, 2] != 0:    # one eye validated
+                val_joints[0, 2] = val_joints[15, 2]
+            elif val_joints[16, 2] != 0:    # one eye validated
+                val_joints[0, 2] = val_joints[16, 2]
+            elif val_joints[17, 2] != 0 and val_joints[18, 2] != 0:  # both ears validated
+                val_joints[0, 2] = (val_joints[17, 2] + val_joints[18, 2])/2
+            elif val_joints[17, 2] != 0:  # one ear validated
+                val_joints[0, 2] = val_joints[17, 2]
+            elif val_joints[18, 2] != 0:  # one ear validated
+                val_joints[0, 2] = val_joints[18, 2]
 
         return val_joints
 
