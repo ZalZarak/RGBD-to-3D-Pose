@@ -55,7 +55,7 @@ lengths = {
 lengths = {
     'neck-nose': (0.125, 0.275),
     'nose-eye': (0.03, 0.06),
-    'eye-ear': (0.07, 0.12),
+    'eye-ear': (0.07, 0.12),    # with this deviation down it will invalidate front view of face but make it robuster to occlusion. If front, eye detection should work
     'neck-shoulder': (0.15, 0.21),
     'shoulder-elbow': (0.27, 0.36),
     'elbow-wrist': (0.26, 0.32),
@@ -66,6 +66,38 @@ lengths = {
     'foot-toe': (0.15, 0.21)
 }
 
+depth_deviations = {
+    "neck-nose": 0.2,
+    "nose-eye": 0.04,
+    "eye-ear": 0.07,
+    "neck-shoulder": 0.17,
+    "shoulder-elbow": -1,   # no depth because arm and leg very flexible
+    "elbow-wrist": -1,
+    "neck-midhip": 0.4,
+    "midhip-hip": 0.09,
+    "hip-knee": -1,
+    "knee-foot": -1,
+    "foot-toe": -1
+}
+
+connections = {
+    "neck-nose": [(0, 1)],
+    "nose-eye": [(0, 15), (0, 16)],
+    "eye-ear": [(15, 17), (16, 18)],
+    "neck-shoulder": [(1, 2), (1, 5)],
+    "shoulder-elbow": [(2, 3), (5, 6)],
+    "elbow-wrist": [(3, 4), (6, 7)],
+    "neck-midhip": [(1, 8)],
+    "midhip-hip": [(8, 9), (8, 12)],
+    "hip-knee": [(9, 10), (12, 13)],
+    "knee-foot": [(10, 11), (13, 14)],
+    "foot-toe": [(11, 22), (14, 19)]
+}
+
+connections_reverse = {}
+for k in connections.keys():
+    for v in connections[k]:
+        connections_reverse[v] = k
 
 class RGBDto3DPose:
     count = 0
@@ -343,11 +375,24 @@ class RGBDto3DPose:
 
 
     def validate_joints(self, joints: np.ndarray, confidences: np.ndarray, depth_image: np.ndarray, color_image: np.ndarray) -> np.ndarray:
-        def val_length(joint1: np.ndarray, joint2: np.ndarray, accepted_length: tuple[float, float]) -> bool:
-            return accepted_length[0] <= np.linalg.norm(joint2 - joint1) <= accepted_length[1]
+        """def val_length(name: str) -> bool:
+            joint_id1, joint_id2 = connections[name]
+            l_min, l_max = lengths[name]
+            return l_min <= np.linalg.norm(joints[joint_id2] - joints[joint_id1]) <= l_max
 
-        def val_depth(joint1: np.ndarray, joint2: np.ndarray, deviation: float = 0.2) -> bool:
-            return abs(joint1[2] - joint2[2]) <= deviation
+        def val_depth(name: str) -> bool:
+            joint_id1, joint_id2 = connections[name]
+            deviation = depth_deviations[name]
+            return deviation < 0 or abs(joints[joint_id1, 2] - joints[joint_id2, 2]) <= deviation"""
+
+        def validate_joint(name: str):
+            for joint_id1, joint_id2 in connections[name]:
+                l_min, l_max = lengths[name]
+                deviation = depth_deviations[name]
+
+                val[joint_id1, joint_id2] = ((l_min <= np.linalg.norm(joints[joint_id2] - joints[joint_id1]) <= l_max)    # length validation
+                                             and
+                                             (deviation < 0 or abs(joints[joint_id1, 2] - joints[joint_id2, 2]) <= deviation))    # depth validation
 
         def generate_search_pixels(pixel: tuple[int, int], deviation: int, skip: int):
             x, y = 0, 0
@@ -370,44 +415,11 @@ class RGBDto3DPose:
         val_joints = np.copy(joints)
 
         # If depth is wrong, then the length of limbs should be incorrect or the depth deviation is too high
+        # The body should have correct length
+        # for some connections also the same depth
 
-        # The upper body should have correct length and have approximately the same depth
-        # neck-midhip
-        val[1, 8] = val_length(joints[1], joints[8], lengths["neck-midhip"]) and val_depth(joints[1], joints[8], 0.4)
-        # neck-nose
-        val[0, 1] = val_length(joints[0], joints[1], lengths["neck-nose"]) and val_depth(joints[0], joints[1], 0.2)
-        # neck-shoulder
-        val[1, 2] = val_length(joints[1], joints[2], lengths["neck-shoulder"]) and val_depth(joints[1], joints[2], 0.17)
-        val[1, 5] = val_length(joints[1], joints[5], lengths["neck-shoulder"]) and val_depth(joints[1], joints[5], 0.17)
-        # midhip-hip
-        val[8, 9] = val_length(joints[8], joints[9], lengths["midhip-hip"]) and val_depth(joints[8], joints[9], 0.09)
-        val[8, 12] = val_length(joints[8], joints[12], lengths["midhip-hip"]) and val_depth(joints[8], joints[12], 0.09)
-
-        # nose-eye
-        val[0, 15] = val_length(joints[0], joints[15], lengths["nose-eye"]) and val_depth(joints[0], joints[15], 0.04)
-        val[0, 16] = val_length(joints[0], joints[16], lengths["nose-eye"]) and val_depth(joints[0], joints[16], 0.04)
-        # eye-ear: with this deviation down it will invalidate front view of face but make it robuster to occlusion. If front, eye detection should work
-        val[15, 17] = val_length(joints[15], joints[17], lengths["eye-ear"]) and val_depth(joints[15], joints[17], 0.07)
-        val[16, 18] = val_length(joints[16], joints[18], lengths["eye-ear"]) and val_depth(joints[16], joints[18], 0.07)
-
-        # no depth because arm and leg very flexible
-        # shoulder-elbow
-        val[2, 3] = val_length(joints[2], joints[3], lengths["shoulder-elbow"])
-        val[5, 6] = val_length(joints[5], joints[6], lengths["shoulder-elbow"])
-        # elbow-wrist
-        val[3, 4] = val_length(joints[3], joints[4], lengths["elbow-wrist"])
-        val[6, 7] = val_length(joints[6], joints[7], lengths["elbow-wrist"])
-        # hip-knee: very imprecise
-        val[9, 10] = val_length(joints[9], joints[10], lengths["hip-knee"])
-        val[12, 13] = val_length(joints[12], joints[13], lengths["hip-knee"])
-        # knee-foot
-        val[10, 11] = val_length(joints[10], joints[11], lengths["knee-foot"])
-        val[13, 14] = val_length(joints[13], joints[14], lengths["knee-foot"])
-        # foot-toe
-        val[11, 22] = val_length(joints[11], joints[22], lengths["foot-toe"])
-        val[14, 19] = val_length(joints[14], joints[19], lengths["foot-toe"])
-
-        # 20, 21, 23, 24 emitted
+        for connection in connections.keys():
+            validate_joint(connection)
 
         for i in range(25):
             # remove depth of supposedly incorrect joints
