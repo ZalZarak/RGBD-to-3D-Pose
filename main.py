@@ -328,39 +328,39 @@ class RGBDto3DPose:
 
         # The upper body should have correct length and have approximately the same depth
         # neck-midhip
-        val[1, 8] = val[8, 1] = val_length(joints[1], joints[8], lengths["neck-midhip"], 0.15, 0.075) and val_depth(joints[1], joints[8], 0.4)
+        val[1, 8] = val_length(joints[1], joints[8], lengths["neck-midhip"], 0.15, 0.075) and val_depth(joints[1], joints[8], 0.4)
         # neck-nose
-        val[0, 1] = val[1, 0] = val_length(joints[0], joints[1], lengths["neck-nose"], 0.075, 0.075) and val_depth(joints[0], joints[1], 0.2)
+        val[0, 1] = val_length(joints[0], joints[1], lengths["neck-nose"], 0.075, 0.075) and val_depth(joints[0], joints[1], 0.2)
         # neck-shoulder
-        val[1, 2] = val[2, 1] = val_length(joints[1], joints[2], lengths["neck-shoulder"], 0.04, 0.02) and val_depth(joints[1], joints[2], 0.17)
-        val[1, 5] = val[5, 1] = val_length(joints[1], joints[5], lengths["neck-shoulder"], 0.04, 0.02) and val_depth(joints[1], joints[5], 0.17)
+        val[1, 2] = val_length(joints[1], joints[2], lengths["neck-shoulder"], 0.04, 0.02) and val_depth(joints[1], joints[2], 0.17)
+        val[1, 5] = val_length(joints[1], joints[5], lengths["neck-shoulder"], 0.04, 0.02) and val_depth(joints[1], joints[5], 0.17)
         # midhip-hip
-        val[8, 9] = val[9, 8] = val_length(joints[8], joints[9], lengths["midhip-hip"], 0.03, 0.02) and val_depth(joints[8], joints[9], 0.09)
-        val[8, 12] = val[12, 8] = val_length(joints[8], joints[12], lengths["midhip-hip"], 0.03, 0.02) and val_depth(joints[8], joints[12], 0.09)
+        val[8, 9] = val_length(joints[8], joints[9], lengths["midhip-hip"], 0.03, 0.02) and val_depth(joints[8], joints[9], 0.09)
+        val[8, 12] = val_length(joints[8], joints[12], lengths["midhip-hip"], 0.03, 0.02) and val_depth(joints[8], joints[12], 0.09)
 
         # nose-eye
-        val[0, 15] = val[15, 0] = val_length(joints[0], joints[15], lengths["nose-eye"], 0.02, 0.01) and val_depth(joints[0], joints[15], 0.04)
-        val[0, 16] = val[16, 0] = val_length(joints[0], joints[16], lengths["nose-eye"], 0.02, 0.01) and val_depth(joints[0], joints[16], 0.04)
+        val[0, 15] = val_length(joints[0], joints[15], lengths["nose-eye"], 0.02, 0.01) and val_depth(joints[0], joints[15], 0.04)
+        val[0, 16] = val_length(joints[0], joints[16], lengths["nose-eye"], 0.02, 0.01) and val_depth(joints[0], joints[16], 0.04)
         # eye-ear: with this deviation down it will invalidate front view of face but make it robuster to occlusion. If front, eye detection should work
-        val[15, 17] = val[17, 15] = val_length(joints[15], joints[17], lengths["eye-ear"], 0.03, 0.02) and val_depth(joints[15], joints[17], 0.07)
-        val[16, 18] = val[18, 16] = val_length(joints[16], joints[18], lengths["eye-ear"], 0.03, 0.02) and val_depth(joints[16], joints[18], 0.07)
+        val[15, 17] = val_length(joints[15], joints[17], lengths["eye-ear"], 0.03, 0.02) and val_depth(joints[15], joints[17], 0.07)
+        val[16, 18] = val_length(joints[16], joints[18], lengths["eye-ear"], 0.03, 0.02) and val_depth(joints[16], joints[18], 0.07)
 
         # no depth because arm and leg very flexible
         # shoulder-elbow
-        val[2, 3] = val[3, 2] = val_length(joints[2], joints[3], lengths["shoulder-elbow"], 0.03, 0.06)
-        val[5, 6] = val[6, 5] = val_length(joints[5], joints[6], lengths["shoulder-elbow"], 0.03, 0.06)
+        val[2, 3] = val_length(joints[2], joints[3], lengths["shoulder-elbow"], 0.03, 0.06)
+        val[5, 6] = val_length(joints[5], joints[6], lengths["shoulder-elbow"], 0.03, 0.06)
         # elbow-wrist
-        val[3, 4] = val[4, 3] = val_length(joints[3], joints[4], lengths["elbow-wrist"], 0.03, 0.03)
-        val[6, 7] = val[7, 6] = val_length(joints[6], joints[7], lengths["elbow-wrist"], 0.03, 0.03)
+        val[3, 4] = val_length(joints[3], joints[4], lengths["elbow-wrist"], 0.03, 0.03)
+        val[6, 7] = val_length(joints[6], joints[7], lengths["elbow-wrist"], 0.03, 0.03)
         # hip-knee: very imprecise
-        val[9, 10] = val[10, 9] = val_length(joints[9], joints[10], lengths["hip-knee"], 0.04, 0.07)
-        val[12, 13] = val[13, 12] = val_length(joints[12], joints[13], lengths["hip-knee"], 0.04, 0.07)
+        val[9, 10] = val_length(joints[9], joints[10], lengths["hip-knee"], 0.04, 0.07)
+        val[12, 13] = val_length(joints[12], joints[13], lengths["hip-knee"], 0.04, 0.07)
         # knee-foot
-        val[10, 11] = val[11, 10] = val_length(joints[10], joints[11], lengths["knee-foot"], 0.02, 0.05)
-        val[13, 14] = val[14, 13] = val_length(joints[13], joints[14], lengths["knee-foot"], 0.02, 0.05)
+        val[10, 11] = val_length(joints[10], joints[11], lengths["knee-foot"], 0.02, 0.05)
+        val[13, 14] = val_length(joints[13], joints[14], lengths["knee-foot"], 0.02, 0.05)
         # foot-toe
-        val[11, 22] = val[22, 11] = val_length(joints[11], joints[22], lengths["foot-toe"])
-        val[14, 19] = val[19, 14] = val_length(joints[14], joints[19], lengths["foot-toe"], 0.05, 0.01)
+        val[11, 22] = val_length(joints[11], joints[22], lengths["foot-toe"])
+        val[14, 19] = val_length(joints[14], joints[19], lengths["foot-toe"], 0.05, 0.01)
 
         # 20, 21, 23, 24 emitted
 
