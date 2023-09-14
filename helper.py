@@ -52,3 +52,15 @@ def show(name: str, frame, joints: np.ndarray = None):
                 cv2.line(frame, point1, point2, (128, 128, 128), 2)
 
     cv2.imshow(name, draw_pixel_grid(frame))
+
+
+def generate_base_search_area(deviation: int, skip: int) -> list[tuple[int, int]]:
+    search = []
+    skip += 1
+    deviation = deviation - deviation % skip
+    for i in range(-deviation, deviation + 1, skip):
+        for j in range(-deviation, deviation + 1, skip):
+            search.append((i, j))
+    search.sort(key=lambda a: a[0] ** 2 + a[1] ** 2)
+    search.pop(0)
+    return search

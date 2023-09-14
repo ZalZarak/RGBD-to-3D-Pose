@@ -11,14 +11,11 @@ from cfonts import render as render_text
 from math import sin, cos, sqrt
 
 import helper
-import pybullet_simulation as sim
-from helper import print_countdown, draw_pixel_grid
 from old.main import visualize_points
 from openpose_handler import OpenPoseHandler
 from simulator import simulate_sync
 
 import multiprocessing as mp
-
 
 """lengths = {
     "neck-nose": 0.2,
@@ -52,52 +49,136 @@ lengths = {
     "foot-toe": (0.2, 0.05, 0.01)
 }"""
 
-lengths = {
-    'neck-nose': (0.125, 0.275),
-    'nose-eye': (0.03, 0.06),
-    'eye-ear': (0.07, 0.12),    # with this deviation down it will invalidate front view of face but make it robuster to occlusion. If front, eye detection should work
-    'neck-shoulder': (0.15, 0.21),
-    'shoulder-elbow': (0.27, 0.36),
-    'elbow-wrist': (0.26, 0.32),
-    'neck-midhip': (0.37, 0.595),
-    'midhip-hip': (0.08, 0.13),
-    'hip-knee': (0.38, 0.49),
-    'knee-foot': (0.44, 0.51),
-    'foot-toe': (0.15, 0.21)
+# as defined in OpenPose
+joint_map = {
+    'Nose': 0,
+    'Neck': 1,
+    'RShoulder': 2,
+    'RElbow': 3,
+    'RWrist': 4,
+    'LShoulder': 5,
+    'LElbow': 6,
+    'LWrist': 7,
+    'MidHip': 8,
+    'RHip': 9,
+    'RKnee': 10,
+    'RAnkle': 11,
+    'LHip': 12,
+    'LKnee': 13,
+    'LAnkle': 14,
+    'REye': 15,
+    'LEye': 16,
+    'REar': 17,
+    'LEar': 18,
+    'LBigToe': 19,
+    'LSmallToe': 20,
+    'LHeel': 21,
+    'RBigToe': 22,
+    'RSmallToe': 23,
+    'RHeel': 24,
+    'Background': 25}
+
+# must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
+lengths_hr = {
+    'Nose-Neck': (0.125, 0.275),
+    'Nose-LEye': (0.03, 0.06),
+    'Nose-REye': (0.03, 0.06),
+    'LEye-LEar': (0.07, 0.12),  # with this deviation down it will invalidate front view of face but make it robuster to occlusion. If front, eye detection should work
+    'REye-REar': (0.07, 0.12),
+    'Neck-LShoulder': (0.15, 0.21),
+    'Neck-RShoulder': (0.15, 0.21),
+    'LShoulder-LElbow': (0.27, 0.36),
+    'RShoulder-RElbow': (0.27, 0.36),
+    'LElbow-LWrist': (0.26, 0.32),
+    'RElbow-RWrist': (0.26, 0.32),
+    'Neck-MidHip': (0.37, 0.595),
+    'MidHip-LHip': (0.08, 0.13),
+    'MidHip-RHip': (0.08, 0.13),
+    'LHip-LKnee': (0.38, 0.49),
+    'RHip-RKnee': (0.38, 0.49),
+    'LKnee-LAnkle': (0.44, 0.51),
+    'RKnee-RAnkle': (0.44, 0.51),
+    'LAnkle-LBigToe': (0.15, 0.21),
+    'RAnkle-RBigToe': (0.15, 0.21)
 }
 
-depth_deviations = {
-    "neck-nose": 0.2,
-    "nose-eye": 0.04,
-    "eye-ear": 0.07,
-    "neck-shoulder": 0.17,
-    "shoulder-elbow": -1,   # no depth because arm and leg very flexible
-    "elbow-wrist": -1,
-    "neck-midhip": 0.4,
-    "midhip-hip": 0.09,
-    "hip-knee": -1,
-    "knee-foot": -1,
-    "foot-toe": -1
+# must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
+depth_deviations_hr = {
+    'Nose-Neck': 0.2,
+    'Nose-LEye': 0.04,
+    'Nose-REye': 0.04,
+    'LEye-LEar': 0.07,  # with this deviation down it will invalidate front view of face but make it robuster to occlusion. If front, eye detection should work
+    'REye-REar': 0.07,
+    'Neck-LShoulder': 0.17,
+    'Neck-RShoulder': 0.17,
+    'LShoulder-LElbow': -1,
+    'RShoulder-RElbow': -1,
+    'LElbow-LWrist': -1,
+    'RElbow-RWrist': -1,
+    'Neck-MidHip': 0.4,
+    'MidHip-LHip': 0.09,
+    'MidHip-RHip': 0.09,
+    'LHip-LKnee': -1,
+    'RHip-RKnee': -1,
+    'LKnee-LAnkle': -1,
+    'RKnee-RAnkle': -1,
+    'LAnkle-LBigToe': -1,
+    'RAnkle-RBigToe': -1
 }
 
-connections = {
-    "neck-nose": [(0, 1)],
-    "nose-eye": [(0, 15), (0, 16)],
-    "eye-ear": [(15, 17), (16, 18)],
-    "neck-shoulder": [(1, 2), (1, 5)],
-    "shoulder-elbow": [(2, 3), (5, 6)],
-    "elbow-wrist": [(3, 4), (6, 7)],
-    "neck-midhip": [(1, 8)],
-    "midhip-hip": [(8, 9), (8, 12)],
-    "hip-knee": [(9, 10), (12, 13)],
-    "knee-foot": [(10, 11), (13, 14)],
-    "foot-toe": [(11, 22), (14, 19)]
+# must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
+search_areas_hr = {     # (deviation, skip) in pixels
+    'Nose': (8, 3),
+    'Neck': (12, 3),
+    'RShoulder': (9, 2),
+    'RElbow': (12, 2),
+    'RWrist': (12, 2),
+    'LShoulder': (9, 2),
+    'LElbow': (12, 2),
+    'LWrist': (12, 2),
+    'MidHip': (20, 4),
+    'RHip': (6, 5),
+    'RKnee': (5, 4),
+    'RAnkle': (4, 3),
+    'LHip': (6, 5),
+    'LKnee': (5, 4),
+    'LAnkle': (4, 3),
+    'REye': (0, 0),
+    'LEye': (0, 0),
+    'REar': (0, 0),
+    'LEar': (0, 0),
+    'LBigToe': (0, 0),
+    'LSmallToe': (0, 0),
+    'LHeel': (0, 0),
+    'RBigToe': (0, 0),
+    'RSmallToe': (0, 0),
+    'RHeel': (0, 0),
+    'Background': (0, 0)
 }
 
-connections_reverse = {}
-for k in connections.keys():
-    for v in connections[k]:
-        connections_reverse[v] = k
+lengths = {}
+for k, v in lengths_hr.items():
+    k1, k2 = k.split('-')
+    lengths[(joint_map[k1], joint_map[k2])] = v
+
+depth_deviations = {}
+for k, v in depth_deviations_hr.items():
+    k1, k2 = k.split('-')
+    depth_deviations[(joint_map[k1], joint_map[k2])] = v
+
+search_areas = {}
+for k, v in search_areas_hr.items():
+    search_areas[joint_map[k]] = helper.generate_base_search_area(v[0], v[1])
+
+# for all tuples (a,b): a<b
+connections_list = [(0, 1), (0, 15), (0, 16), (15, 17), (16, 18), (1, 2), (1, 5), (2, 3), (5, 6), (3, 4), (6, 7),
+                    (1, 8), (8, 9), (8, 12), (9, 10), (12, 13), (10, 11), (13, 14), (11, 22), (14, 19)]
+
+connections_dict = {k: [] for k in range(26)}
+for a, b in connections_list:
+    connections_dict[a].append(b)
+    connections_dict[b].append(a)
+
 
 class RGBDto3DPose:
     count = 0
@@ -246,7 +327,8 @@ class RGBDto3DPose:
 
             ready = mp.Event()
             self.joints = mp.Array('f', np.zeros([25 * 3]))
-            simulator_process = mp.Process(target=simulate_sync, args=(self.joints, ready, self.done, self.simulate_limbs, self.simulate_joints, self.simulate_joint_connections))
+            simulator_process = mp.Process(target=simulate_sync, args=(
+            self.joints, ready, self.done, self.simulate_limbs, self.simulate_joints, self.simulate_joint_connections))
             simulator_process.start()
             ready.wait()
 
@@ -271,7 +353,7 @@ class RGBDto3DPose:
         self.spatial_filter = rs.spatial_filter()
         self.temporal_filter = rs.temporal_filter()
         self.disparity2depth = rs.disparity_transform(False)
-        self.hole_filling_filter = rs.hole_filling_filter(1)    # i feel like this is buggy
+        self.hole_filling_filter = rs.hole_filling_filter(1)  # i feel like this is buggy
 
         if self.save_bag:
             config.enable_record_to_file(self.filename_bag)
@@ -280,11 +362,11 @@ class RGBDto3DPose:
             device = pipeline_profile.get_device()
             recorder = device.as_recorder()
             rs.recorder.pause(recorder)
-            print_countdown(self.countdown)
+            helper.print_countdown(self.countdown)
             rs.recorder.resume(recorder)
         else:
             if self.countdown > 0:
-                print_countdown(self.countdown)
+                helper.print_countdown(self.countdown)
             pipeline_profile = pipeline.start(config)
 
         self.intrinsics = pipeline_profile.get_stream(rs.stream.depth).as_video_stream_profile().get_intrinsics()
@@ -329,19 +411,19 @@ class RGBDto3DPose:
         if self.use_openpose:
             # get joints from OpenPose. Assume there is only one person
             res, joint_image = self.openpose_handler.push_frame(color_image)
-            joints, confidences = res[0, :, :2], res[0, :, 2]
+            joints_2d, confidences = res[0, :, :2], res[0, :, 2]
 
             if self.show_rgb:
                 helper.show("RGB-Stream", joint_image if self.show_joints else color_image)
             if self.show_depth:
-                helper.show("Depth-Stream", depth_image, joints if self.show_joints else None)
+                helper.show("Depth-Stream", depth_image, joints_2d if self.show_joints else None)
 
-            joints = self.get_3d_coords(joints, depth_frame)
-            joints_val = self.validate_joints(joints, confidences, depth_image, color_image)
+            depth_frame = depth_frame.as_depth_frame()
+            joints_3d = self.get_3d_coords(joints_2d, depth_frame)
+            joints_val = self.validate_joints(joints_3d, joints_2d, confidences, depth_frame, color_image)
             joints_val = np.apply_along_axis(self.transform, 1, joints_val)
 
             if self.simulate:
-
                 self.joints[:] = joints_val.flatten()
             if self.save_joints:
                 self.joints_save.append((time.time() - self.start_time, joints_val))
@@ -357,13 +439,12 @@ class RGBDto3DPose:
                 helper.show("Depth-Stream", depth_image)
 
     def get_3d_coords(self, joints: np.ndarray, depth_frame) -> np.ndarray:
-        depths = depth_frame.as_depth_frame()
         coords = np.zeros([joints.shape[0], 3])
 
         for i, (x, y) in enumerate(joints):
             try:
                 x, y = self.inverse_flip(x, y)
-                depth = depths.get_distance(x, y)
+                depth = depth_frame.get_distance(x, y)
 
                 # get 3d coordinates and reorder them from y,x,z to x,y,z
                 coord = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x, y), depth=depth)
@@ -374,7 +455,7 @@ class RGBDto3DPose:
         return coords
 
 
-    def validate_joints(self, joints: np.ndarray, confidences: np.ndarray, depth_image: np.ndarray, color_image: np.ndarray) -> np.ndarray:
+    def validate_joints(self, joints_3d: np.ndarray, joints_2d: np.ndarray, confidences: np.ndarray, depth_frame, color_image: np.ndarray) -> np.ndarray:
         """def val_length(name: str) -> bool:
             joint_id1, joint_id2 = connections[name]
             l_min, l_max = lengths[name]
@@ -385,41 +466,58 @@ class RGBDto3DPose:
             deviation = depth_deviations[name]
             return deviation < 0 or abs(joints[joint_id1, 2] - joints[joint_id2, 2]) <= deviation"""
 
-        def validate_joint(name: str):
-            for joint_id1, joint_id2 in connections[name]:
-                l_min, l_max = lengths[name]
-                deviation = depth_deviations[name]
+        def validate_joint(connection: tuple[int, int]) -> bool:
+            l_min, l_max = lengths[connection]
+            deviation = depth_deviations[connection]
 
-                val[joint_id1, joint_id2] = ((l_min <= np.linalg.norm(joints[joint_id2] - joints[joint_id1]) <= l_max)    # length validation
-                                             and
-                                             (deviation < 0 or abs(joints[joint_id1, 2] - joints[joint_id2, 2]) <= deviation))    # depth validation
+            return ((l_min <= np.linalg.norm(joints_3d[connection[1]] - joints_3d[connection[0]]) <= l_max)  # length validation
+                   and
+                   (deviation < 0 or abs(joints_3d[connection[0], 2] - joints_3d[connection[1], 2]) <= deviation))  # depth validation
 
-        def generate_search_pixels(pixel: tuple[int, int], deviation: int, skip: int):
-            x, y = 0, 0
-            search = []
-            skip += 1
-            deviation = deviation - deviation % skip
-            for i in range(-deviation, deviation+1, skip):
-                for j in range(-deviation, deviation+1, skip):
-                    search.append((i, j))
-            search.sort(key=lambda a: a[0]**2 + a[1]**2)
-            search.pop(0)
-
-            search = map(lambda a: (a[0] + pixel[0], a[1] + pixel[1]), search)
-            search = filter(lambda a: 0 <= a[0] < depth_image.shape[0] and 0 <= a[1] < depth_image.shape[1], search)
+        def generate_search_pixels(pixel: tuple[int, int], joint_id: int):
+            search = map(lambda a: (a[0] + pixel[0], a[1] + pixel[1]), search_areas[joint_id])
+            search = filter(lambda a: 0 <= a[0] < color_image.shape[0] and 0 <= a[1] < color_image.shape[1], search)
             return search
-
 
         val = np.zeros((25, 25), dtype="bool")
 
-        val_joints = np.copy(joints)
+        val_joints = np.copy(joints_3d)
 
         # If depth is wrong, then the length of limbs should be incorrect or the depth deviation is too high
         # The body should have correct length
         # for some connections also the same depth
 
-        for connection in connections.keys():
-            validate_joint(connection)
+        for connection in connections_list:
+            val[connection] = validate_joint(connection)
+
+        """change = True
+        while change:
+            change = False
+            for i in range(25):
+                # if joint is detected but not validated try to correct depth
+                if joints_3d[i, 2] != 0 and not (any(val[i]) or any(val[:, i])):
+                    search_pixels = generate_search_pixels(joints_2d[i], i)
+                    success = False
+                    for x, y in search_pixels:
+                        x, y = self.inverse_flip(x, y)
+                        try:
+                            joints_3d[i, 2] = depth_frame.get_distance(x, y)
+                            for connected_joint in connections_dict[i]:
+
+                                if validate_joint((min(i, connected_joint), max(i, connected_joint))):
+                                    val[(min(i, connected_joint), max(i, connected_joint))] = True
+                                    success = True
+                                    change = True
+                                    break   # Break the inner loop...
+                            else:
+                                continue    # Continue if the inner loop wasn't broken.
+                            break   # Inner loop was broken, break the outer.
+                        except RuntimeError:    # joint outside of image
+                            pass
+                    if not success:
+                        joints_3d[i, 2] = 0"""
+
+
 
         for i in range(25):
             # remove depth of supposedly incorrect joints
@@ -427,32 +525,32 @@ class RGBDto3DPose:
                 val_joints[i, 2] = 0
 
             # remove joints with low confidence
-            """if confidences[i] < 0:
-                val_joints[i] = 0"""
+            #if confidences[i] < 0:
+                #val_joints[i] = 0
 
         # reduce head to nose
         if all(val_joints[0] == 0):  # nose not detected
-            if val_joints[15, 2] != 0 and val_joints[16, 2] != 0:   # both eyes validated
-                val_joints[0] = (val_joints[15] + val_joints[16])/2
-            elif val_joints[15, 2] != 0:    # one eye validated
+            if val_joints[15, 2] != 0 and val_joints[16, 2] != 0:  # both eyes validated
+                val_joints[0] = (val_joints[15] + val_joints[16]) / 2
+            elif val_joints[15, 2] != 0:  # one eye validated
                 val_joints[0] = val_joints[15]
-            elif val_joints[16, 2] != 0:    # one eye validated
+            elif val_joints[16, 2] != 0:  # one eye validated
                 val_joints[0] = val_joints[16]
             elif val_joints[17, 2] != 0 and val_joints[18, 2] != 0:  # both ears validated
-                val_joints[0] = (val_joints[17] + val_joints[18])/2
+                val_joints[0] = (val_joints[17] + val_joints[18]) / 2
             elif val_joints[17, 2] != 0:  # one ear validated
                 val_joints[0] = val_joints[17]
             elif val_joints[18, 2] != 0:  # one ear validated
                 val_joints[0] = val_joints[18]
         elif val_joints[0, 2] == 0:  # nose not validated
-            if val_joints[15, 2] != 0 and val_joints[16, 2] != 0:   # both eyes validated
-                val_joints[0, 2] = (val_joints[15, 2] + val_joints[16, 2])/2
-            elif val_joints[15, 2] != 0:    # one eye validated
+            if val_joints[15, 2] != 0 and val_joints[16, 2] != 0:  # both eyes validated
+                val_joints[0, 2] = (val_joints[15, 2] + val_joints[16, 2]) / 2
+            elif val_joints[15, 2] != 0:  # one eye validated
                 val_joints[0, 2] = val_joints[15, 2]
-            elif val_joints[16, 2] != 0:    # one eye validated
+            elif val_joints[16, 2] != 0:  # one eye validated
                 val_joints[0, 2] = val_joints[16, 2]
             elif val_joints[17, 2] != 0 and val_joints[18, 2] != 0:  # both ears validated
-                val_joints[0, 2] = (val_joints[17, 2] + val_joints[18, 2])/2
+                val_joints[0, 2] = (val_joints[17, 2] + val_joints[18, 2]) / 2
             elif val_joints[17, 2] != 0:  # one ear validated
                 val_joints[0, 2] = val_joints[17, 2]
             elif val_joints[18, 2] != 0:  # one ear validated
@@ -486,12 +584,14 @@ def playback(playback_file: str, savefile_prefix: str | None = None, save_joints
 
 
 if __name__ == '__main__':
-    cam_translation = (0, 1.5, 0)    # from (x,y,z) = (0,0,0) in m
-    cam_rotation = (0, 0, 0)   # from pointing parallel to z-axis, (x-rotation [up/down], y-rotation [left/right], z-rotation/tilt [anti-clockwise, clockwise]), in radians
+    cam_translation = (0, 1.5, 0)  # from (x,y,z) = (0,0,0) in m
+    cam_rotation = (0, 0,
+                    0)  # from pointing parallel to z-axis, (x-rotation [up/down], y-rotation [left/right], z-rotation/tilt [anti-clockwise, clockwise]), in radians
 
     # playback("test.bag", save_joints=True, savefile_prefix="vid", simulate_limbs = False, simulate_joints = False, simulate_joint_connections = False)
     # playback("test.bag", translation=cam_translation, simulate_joint_connections=False, simulate_joints=False)
 
     # stream(countdown=3, translation=cam_translation, rotate=2, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False, simulate_joint_connections=False, simulate_limbs=True)
 
-    stream(translation=cam_translation, flip=0, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False, simulate_joint_connections=False, simulate_limbs=True)
+    stream(translation=cam_translation, flip=0, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False,
+           simulate_joint_connections=False, simulate_limbs=True)
