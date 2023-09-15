@@ -78,6 +78,8 @@ joint_map = {
     'RHeel': 24,
     'Background': 25}
 
+joint_map_rev = {v: k for k, v in joint_map.items()}
+
 # must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
 lengths_hr = {
     'Nose-Neck': (0.125, 0.275),
@@ -92,8 +94,8 @@ lengths_hr = {
     'LElbow-LWrist': (0.26, 0.32),
     'RElbow-RWrist': (0.26, 0.32),
     'Neck-MidHip': (0.37, 0.595),
-    'MidHip-LHip': (0.08, 0.13),
-    'MidHip-RHip': (0.08, 0.13),
+    'MidHip-LHip': (0.1, 0.13),
+    'MidHip-RHip': (0.1, 0.13),
     'LHip-LKnee': (0.38, 0.49),
     'RHip-RKnee': (0.38, 0.49),
     'LKnee-LAnkle': (0.44, 0.51),
@@ -115,7 +117,7 @@ depth_deviations_hr = {
     'RShoulder-RElbow': -1,
     'LElbow-LWrist': -1,
     'RElbow-RWrist': -1,
-    'Neck-MidHip': 0.4,
+    'Neck-MidHip': 0.2,
     'MidHip-LHip': 0.09,
     'MidHip-RHip': 0.09,
     'LHip-LKnee': -1,
@@ -136,7 +138,7 @@ search_areas_hr = {     # (deviation, skip) in pixels
     'LShoulder': (9, 2),
     'LElbow': (12, 2),
     'LWrist': (12, 2),
-    'MidHip': (20, 4),
+    'MidHip': (15, 4),
     'RHip': (6, 5),
     'RKnee': (5, 4),
     'RAnkle': (4, 3),
@@ -353,7 +355,7 @@ class RGBDto3DPose:
         self.spatial_filter = rs.spatial_filter()
         self.temporal_filter = rs.temporal_filter()
         self.disparity2depth = rs.disparity_transform(False)
-        self.hole_filling_filter = rs.hole_filling_filter(1)  # i feel like this is buggy
+        self.hole_filling_filter = rs.hole_filling_filter(2)  # i feel like this is buggy
 
         if self.save_bag:
             config.enable_record_to_file(self.filename_bag)
@@ -371,14 +373,15 @@ class RGBDto3DPose:
 
         self.intrinsics = pipeline_profile.get_stream(rs.stream.depth).as_video_stream_profile().get_intrinsics()
 
-        depth_sensor = pipeline_profile.get_device().first_depth_sensor()
-        for i in range(int(depth_sensor.get_option_range(rs.option.visual_preset).max)):
-            if depth_sensor.get_option_value_description(rs.option.visual_preset, i) == "High Density":
-                depth_sensor.set_option(rs.option.visual_preset, i)
-        depth_sensor.set_option(rs.option.exposure, 16000)
-        depth_sensor.set_option(rs.option.gain, 16)
-        depth_sensor.set_option(rs.option.laser_power, 360)
-        depth_sensor.set_option(rs.option.depth_units, 0.0005)
+        if not self.playback:
+            depth_sensor = pipeline_profile.get_device().first_depth_sensor()
+            for i in range(int(depth_sensor.get_option_range(rs.option.visual_preset).max)):
+                if depth_sensor.get_option_value_description(rs.option.visual_preset, i) == "High Density":
+                    depth_sensor.set_option(rs.option.visual_preset, i)
+            depth_sensor.set_option(rs.option.exposure, 16000)
+            depth_sensor.set_option(rs.option.gain, 16)
+            depth_sensor.set_option(rs.option.laser_power, 360)
+            depth_sensor.set_option(rs.option.depth_units, 0.0005)
 
         self.pipeline = pipeline
 
@@ -470,13 +473,13 @@ class RGBDto3DPose:
             l_min, l_max = lengths[connection]
             deviation = depth_deviations[connection]
 
-            return ((l_min <= np.linalg.norm(joints_3d[connection[1]] - joints_3d[connection[0]]) <= l_max)  # length validation
+            return ((l_min <= np.linalg.norm(val_joints[connection[1]] - val_joints[connection[0]]) <= l_max)  # length validation
                    and
-                   (deviation < 0 or abs(joints_3d[connection[0], 2] - joints_3d[connection[1], 2]) <= deviation))  # depth validation
+                   (deviation < 0 or abs(val_joints[connection[0], 2] - val_joints[connection[1], 2]) <= deviation))  # depth validation
 
         def generate_search_pixels(pixel: tuple[int, int], joint_id: int):
             search = map(lambda a: (a[0] + pixel[0], a[1] + pixel[1]), search_areas[joint_id])
-            search = filter(lambda a: 0 <= a[0] < color_image.shape[0] and 0 <= a[1] < color_image.shape[1], search)
+            search = filter(lambda a: 0 <= a[0] < self.resolution[0] and 0 <= a[1] < self.resolution[1], search)
             return search
 
         val = np.zeros((25, 25), dtype="bool")
@@ -490,34 +493,37 @@ class RGBDto3DPose:
         for connection in connections_list:
             val[connection] = validate_joint(connection)
 
-        """change = True
+        # correct until no joint was corrected
+        # theoretically it might run into infinity loop, but it always ran smoothly
+        change = True
         while change:
             change = False
             for i in range(25):
                 # if joint is detected but not validated try to correct depth
-                if joints_3d[i, 2] != 0 and not (any(val[i]) or any(val[:, i])):
-                    search_pixels = generate_search_pixels(joints_2d[i], i)
-                    success = False
-                    for x, y in search_pixels:
-                        x, y = self.inverse_flip(x, y)
+                if val_joints[i, 2] != 0 and not (any(val[i]) or any(val[:, i])):
+                    # flip the current pixel to camera coordinate system
+                    x, y = self.inverse_flip(joints_2d[i, 0], joints_2d[i, 1])
+                    # generate search pixels around joint
+                    for x_search, y_search in generate_search_pixels((x, y), i):    # for each pixel in search area
                         try:
-                            joints_3d[i, 2] = depth_frame.get_distance(x, y)
+                            depth = depth_frame.get_distance(x_search, y_search)    # get the depth at this pixel
+                            # get coordinate of original x,y but with the new depth
+                            coord = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x, y), depth=depth)
+                            val_joints[i] = self.flip_3d_coord(coord)   # reorder it from y,x,z to x,y,z
+
+                            # try if any connection validates successfully then break out and continue with the next joint
                             for connected_joint in connections_dict[i]:
-
-                                if validate_joint((min(i, connected_joint), max(i, connected_joint))):
-                                    val[(min(i, connected_joint), max(i, connected_joint))] = True
-                                    success = True
+                                j1, j2 = sorted((i, connected_joint))
+                                if validate_joint((j1, j2)):
+                                    val[j1, j2] = True  # to not correct those joints again
                                     change = True
-                                    break   # Break the inner loop...
+                                    break  # Break the inner loop...
                             else:
-                                continue    # Continue if the inner loop wasn't broken.
-                            break   # Inner loop was broken, break the outer.
-                        except RuntimeError:    # joint outside of image
+                                continue  # Continue if the inner loop wasn't broken.
+                            break  # Inner loop was broken, break the outer.
+                        except RuntimeError:  # joint outside of image
+                            print("This shouldn't happen during correction!")
                             pass
-                    if not success:
-                        joints_3d[i, 2] = 0"""
-
-
 
         for i in range(25):
             # remove depth of supposedly incorrect joints
@@ -525,8 +531,8 @@ class RGBDto3DPose:
                 val_joints[i, 2] = 0
 
             # remove joints with low confidence
-            #if confidences[i] < 0:
-                #val_joints[i] = 0
+            # if confidences[i] < 0:
+                # val_joints[i] = 0"""
 
         # reduce head to nose
         if all(val_joints[0] == 0):  # nose not detected
@@ -585,13 +591,18 @@ def playback(playback_file: str, savefile_prefix: str | None = None, save_joints
 
 if __name__ == '__main__':
     cam_translation = (0, 1.5, 0)  # from (x,y,z) = (0,0,0) in m
-    cam_rotation = (0, 0,
-                    0)  # from pointing parallel to z-axis, (x-rotation [up/down], y-rotation [left/right], z-rotation/tilt [anti-clockwise, clockwise]), in radians
+    cam_rotation = (0, 0, 0)  # from pointing parallel to z-axis, (x-rotation [up/down], y-rotation [left/right], z-rotation/tilt [anti-clockwise, clockwise]), in radians
 
     # playback("test.bag", save_joints=True, savefile_prefix="vid", simulate_limbs = False, simulate_joints = False, simulate_joint_connections = False)
-    # playback("test.bag", translation=cam_translation, simulate_joint_connections=False, simulate_joints=False)
+    playback("test.bag", translation=cam_translation, simulate_joint_connections=False, simulate_joints=False)
 
     # stream(countdown=3, translation=cam_translation, rotate=2, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False, simulate_joint_connections=False, simulate_limbs=True)
 
-    stream(translation=cam_translation, flip=0, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False,
-           simulate_joint_connections=False, simulate_limbs=True)
+    #stream(translation=cam_translation, flip=0, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False,
+           #simulate_joint_connections=False, simulate_limbs=True)
+
+    #stream(savefile_prefix="test_val", save_joints = False, save_bag = True, flip = 0, countdown = 2, translation=cam_translation,
+     #      show_rgb = True, show_depth = True, show_joints = True,
+      #     simulate_limbs = False, simulate_joints = False, simulate_joint_connections = False)
+
+    # playback("test_val.bag", flip=0, translation=cam_translation, simulate_joint_connections=False, simulate_joints=False)
