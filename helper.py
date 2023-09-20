@@ -44,7 +44,6 @@ def show(name: str, frame, joints: np.ndarray = None):
         joints = joints.astype(int)
         for joint in joints:
             if joint.any() != 0:
-                pass
                 cv2.circle(frame, joint, 3, (255, 255, 255), -1)
         for pair in pairs:
             point1, point2 = joints[pair[0]], joints[pair[1]]
@@ -55,6 +54,8 @@ def show(name: str, frame, joints: np.ndarray = None):
 
 
 def generate_base_search_area(deviation: int, skip: int) -> list[tuple[int, int]]:
+    if deviation <= 0 or skip < 0:
+        return []
     search = []
     skip += 1
     deviation = deviation - deviation % skip
@@ -63,4 +64,10 @@ def generate_base_search_area(deviation: int, skip: int) -> list[tuple[int, int]
             search.append((i, j))
     search.sort(key=lambda a: a[0] ** 2 + a[1] ** 2)
     search.pop(0)
+    return search
+
+
+def generate_search_pixels(pixel: tuple[int, int], joint_id: int, base_search_area: dict[int, list[tuple[int, int]]], resolution: tuple[int, int]):
+    search = map(lambda a: (a[0] + pixel[0], a[1] + pixel[1]), base_search_area[joint_id])
+    search = filter(lambda a: 0 <= a[0] < resolution[0] and 0 <= a[1] < resolution[1], search)
     return search

@@ -317,6 +317,7 @@ class RGBDto3DPose:
                     pickle.dump(self.joints_save, file)
                 print("Joints saved to:", self.filename_joints)
 
+
     def prepare(self):
         # Prepare visualizer
 
@@ -386,42 +387,17 @@ class RGBDto3DPose:
         self.pipeline = pipeline
 
     def process_frame(self):
-        # Wait for the next set of frames from the camera
-        # self.align = rs.align(rs.stream.color)
-        frames = self.pipeline.wait_for_frames()
-        frames = self.align.process(frames)
-
-        # Get depth frame
-        depth_frame = frames.get_depth_frame()
-        # depth_frame = self.decimation_filter.process(depth_frame)
-        depth_frame = self.depth2disparity.process(depth_frame)
-        depth_frame = self.spatial_filter.process(depth_frame)
-        depth_frame = self.temporal_filter.process(depth_frame)
-        depth_frame = self.disparity2depth.process(depth_frame)
-        depth_frame = self.hole_filling_filter.process(depth_frame)
-        color_frame = frames.get_color_frame()
-
-        # Colorize depth frame to jet colormap
-        depth_color_frame = self.colorizer.colorize(depth_frame)
-
-        # Convert depth_frame to numpy array to render image in opencv
-        depth_image = np.asanyarray(depth_color_frame.get_data())
-        color_image = np.asanyarray(color_frame.get_data())
-
-        depth_image = np.rot90(depth_image, k=self.flip)
-        color_image = np.rot90(color_image, k=self.flip)
+        color_frame, color_image, depth_frame, depth_image = self.get_frames()
 
         if self.use_openpose:
             # get joints from OpenPose. Assume there is only one person
-            res, joint_image = self.openpose_handler.push_frame(color_image)
-            joints_2d, confidences = res[0, :, :2], res[0, :, 2]
+            joints_2d, confidences, joint_image = self.openpose_handler.push_frame(color_image)
 
             if self.show_rgb:
                 helper.show("RGB-Stream", joint_image if self.show_joints else color_image)
             if self.show_depth:
                 helper.show("Depth-Stream", depth_image, joints_2d if self.show_joints else None)
 
-            depth_frame = depth_frame.as_depth_frame()
             joints_3d = self.get_3d_coords(joints_2d, depth_frame)
             joints_val = self.validate_joints(joints_3d, joints_2d, confidences, depth_frame, color_image)
             joints_val = np.apply_along_axis(self.transform, 1, joints_val)
@@ -440,6 +416,36 @@ class RGBDto3DPose:
                 helper.show("RGB-Stream", color_image)
             if self.show_depth:
                 helper.show("Depth-Stream", depth_image)
+
+    def get_frames(self) -> tuple[any, np.ndarray, any, np.ndarray]:
+        # Wait for the next set of frames from the camera
+        # self.align = rs.align(rs.stream.color)
+        frames = self.pipeline.wait_for_frames()
+        frames = self.align.process(frames)
+
+        # Get depth frame
+        depth_frame = frames.get_depth_frame()
+        # depth_frame = self.decimation_filter.process(depth_frame)
+        depth_frame = self.depth2disparity.process(depth_frame)
+        depth_frame = self.spatial_filter.process(depth_frame)
+        depth_frame = self.temporal_filter.process(depth_frame)
+        depth_frame = self.disparity2depth.process(depth_frame)
+        depth_frame = self.hole_filling_filter.process(depth_frame)
+        color_frame = frames.get_color_frame()
+
+        # Colorize depth frame to jet colormap
+        depth_color_frame = self.colorizer.colorize(depth_frame)
+
+        depth_frame = depth_frame.as_depth_frame()
+
+        # Convert depth_frame to numpy array to render image in opencv
+        depth_image = np.asanyarray(depth_color_frame.get_data())
+        color_image = np.asanyarray(color_frame.get_data())
+
+        depth_image = np.rot90(depth_image, k=self.flip)
+        color_image = np.rot90(color_image, k=self.flip)
+
+        return color_frame, color_image, depth_frame, depth_image
 
     def get_3d_coords(self, joints: np.ndarray, depth_frame) -> np.ndarray:
         coords = np.zeros([joints.shape[0], 3])
@@ -477,11 +483,6 @@ class RGBDto3DPose:
                    and
                    (deviation < 0 or abs(val_joints[connection[0], 2] - val_joints[connection[1], 2]) <= deviation))  # depth validation
 
-        def generate_search_pixels(pixel: tuple[int, int], joint_id: int):
-            search = map(lambda a: (a[0] + pixel[0], a[1] + pixel[1]), search_areas[joint_id])
-            search = filter(lambda a: 0 <= a[0] < self.resolution[0] and 0 <= a[1] < self.resolution[1], search)
-            return search
-
         val = np.zeros((25, 25), dtype="bool")
 
         val_joints = np.copy(joints_3d)
@@ -504,7 +505,7 @@ class RGBDto3DPose:
                     # flip the current pixel to camera coordinate system
                     x, y = self.inverse_flip(joints_2d[i, 0], joints_2d[i, 1])
                     # generate search pixels around joint
-                    for x_search, y_search in generate_search_pixels((x, y), i):    # for each pixel in search area
+                    for x_search, y_search in helper.generate_search_pixels((x, y), i, search_areas, self.resolution):    # for each pixel in search area
                         try:
                             depth = depth_frame.get_distance(x_search, y_search)    # get the depth at this pixel
                             # get coordinate of original x,y but with the new depth
@@ -594,12 +595,12 @@ if __name__ == '__main__':
     cam_rotation = (0, 0, 0)  # from pointing parallel to z-axis, (x-rotation [up/down], y-rotation [left/right], z-rotation/tilt [anti-clockwise, clockwise]), in radians
 
     # playback("test.bag", save_joints=True, savefile_prefix="vid", simulate_limbs = False, simulate_joints = False, simulate_joint_connections = False)
-    playback("test.bag", translation=cam_translation, simulate_joint_connections=False, simulate_joints=False)
+    # playback("test.bag", translation=cam_translation, simulate_joint_connections=False, simulate_joints=False)
 
     # stream(countdown=3, translation=cam_translation, rotate=2, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False, simulate_joint_connections=False, simulate_limbs=True)
 
-    #stream(translation=cam_translation, flip=0, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False,
-           #simulate_joint_connections=False, simulate_limbs=True)
+    stream(translation=cam_translation, flip=0, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False,
+          simulate_joint_connections=False, simulate_limbs=True)
 
     #stream(savefile_prefix="test_val", save_joints = False, save_bag = True, flip = 0, countdown = 2, translation=cam_translation,
      #      show_rgb = True, show_depth = True, show_joints = True,

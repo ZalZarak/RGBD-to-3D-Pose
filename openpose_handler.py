@@ -73,7 +73,7 @@ class OpenPoseHandler:
 
         self.op_wrapper = op_wrapper
 
-    def push_frame(self, frame: np.ndarray) -> (np.ndarray, any):
+    def push_frame(self, frame: np.ndarray) -> tuple[np.ndarray, np.ndarray, any]:
         _, encoded_image = cv2.imencode('.png', frame)
         frame = cv2.imdecode(encoded_image, 1)
 
@@ -82,9 +82,9 @@ class OpenPoseHandler:
         self.op_wrapper.emplaceAndPop(op.VectorDatum([datum]))
 
         if datum.poseKeypoints is not None:
-            return datum.poseKeypoints, datum.cvOutputData
+            return datum.poseKeypoints[0, :, :2], datum.poseKeypoints[0, :, 2], datum.cvOutputData
         else:
-            return np.zeros([1, op.getPoseNumberBodyParts(self.poseModel), 3]), datum.cvOutputData
+            return np.zeros([25, 2]), np.zeros([25, 1]), datum.cvOutputData
 
 
 if __name__ == '__main__':
