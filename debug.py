@@ -2,6 +2,9 @@ import cv2
 import tkinter as tk
 from tkinter import ttk
 import numpy as np
+import statistics
+
+import pandas as pd
 
 import helper
 import main
@@ -216,7 +219,7 @@ def debug_search_area(resolution: tuple[int, int] = (480, 270), fps: int = 30, f
         cl.pipeline.stop()
 
 
-def debug_length(mode: int, custom_connections=None, connections_except=None, resolution: tuple[int, int] = (480, 270), fps: int = 30, flip: int = 0,
+def debug_length(mode: int, output_filename: str = None, custom_connections=None, connections_except=None, resolution: tuple[int, int] = (480, 270), fps: int = 30, flip: int = 0,
                  playback_file: str = None):
     # mode 0: length, mode 1: depth
 
@@ -264,20 +267,20 @@ def debug_length(mode: int, custom_connections=None, connections_except=None, re
                 lengths_key = main.joint_map_rev[pair[0]] + "-" + main.joint_map_rev[pair[1]]
 
                 if point1.any() != 0 and point2.any() != 0 and point1_3d[2] != 0 and point2_3d[2] != 0:
-                    cv2.line(color_image, point1, point2, (128, 128, 128), 2)
-
                     center_x = (point1[0] + point2[0]) // 2
                     center_y = (point1[1] + point2[1]) // 2
                     if mode == 0:
                         l = np.linalg.norm(point1_3d - point2_3d)
                     else:
                         l = abs(point1_3d[2] - point2_3d[2])
+                    color = (128, 128, 128) if main.lengths_hr[lengths_key][0] <= l <= main.lengths_hr[lengths_key][1] else (0, 0, 200)
                     lengths[lengths_key].append(l)
                     text = str(l.round(2))
 
                     text_size, _ = cv2.getTextSize(text, font, font_scale, font_thickness)
                     text_x = center_x - (text_size[0] // 2)
                     text_y = center_y + (text_size[1] // 2)
+                    cv2.line(color_image, point1, point2, color, 2)
                     cv2.putText(color_image, text, (text_x, text_y), font, font_scale, font_color, font_thickness)
 
             cv2.imshow("Debug-Joint", color_image)
@@ -287,7 +290,83 @@ def debug_length(mode: int, custom_connections=None, connections_except=None, re
         cv2.destroyAllWindows()
         cl.pipeline.stop()
 
+        stats = {}
+        for name, l in lengths.items():
+            if len(l) > 0:
+                l.sort()
+                mean = round(statistics.mean(l), 3)
+                median = round(statistics.median(l), 3)
+                min_ = round(l[0], 3)
+                max_ = round(l[-1], 3)
+                if len(l) > 1:
+                    variance = round(statistics.variance(l), 3)
+                    stddev = round(statistics.stdev(l), 3)
+                    deciles = [round(i, 3) for i in statistics.quantiles(data=l, n=10)]
+                else:
+                    variance = ""
+                    stddev = ""
+                    deciles = [""] * 9
+
+                print(f"""
+                Connection: {name}
+                    Data Points:        {len(l)}
+                    Mean:               {mean}
+                    Variance:           {variance}
+                    Standard Deviation: {stddev}
+                    Median:             {median}
+                    Min:                {min_}
+                    Max:                {max_}
+                    Deciles:            {deciles}
+                    """)
+
+                stats[name] = {
+                    "Data Points": len(l),
+                    "Mean": mean,
+                    "Variance": variance,
+                    "Standard Deviation": stddev,
+                    "Median": median,
+                    "Min": min_,
+                    "Max": max_,
+                    "Deciles": deciles,
+                }
+            else:
+                print(f"""
+                Connection: {name}: No Data
+                    """)
+
+                stats[name] = {
+                    "Data Points": 0,
+                    "Mean": "",
+                    "Variance": "",
+                    "Standard Deviation": "",
+                    "Median": "",
+                    "Min": "",
+                    "Max": "",
+                    "Deciles": [""] * 9,
+                }
+
+            for i, decile in enumerate(stats[name]["Deciles"]):
+                stats[name][f"Decile_{i}"] = decile
+            stats[name].pop("Deciles")
+
+        if output_filename is not None:
+            max_length = max(len(col) if col is not None else 0 for col in lengths.values())
+            for key, value in lengths.items():
+                if len(value) < max_length:
+                    lengths[key] += [""] * (max_length - len(value))
+            df = pd.DataFrame(lengths)
+            stats_df = pd.DataFrame.from_dict(stats, orient='index', columns=list(stats[list(stats.keys())[0]].keys()))
+            empty_columns = pd.Series([None] * len(df), name='')
+            stats_df = pd.concat([stats_df, empty_columns], axis=1)
+            stats_df = stats_df.transpose()
+            combined_df = pd.concat([stats_df, df], axis=0)
+            if output_filename.endswith(".csv"):
+                combined_df.to_csv(output_filename, index=True)
+            elif output_filename.endswith(".xlsx"):
+                combined_df.to_excel(output_filename, index=True)
+
+            print(f"Saved to {output_filename}.")
+
+
 if __name__ == '__main__':
-    # debug_color_mask()
-    #debug_joints(2, connections_except=[(0,16),(16,18)])
-    debug_search_area()
+    debug_length(0)
