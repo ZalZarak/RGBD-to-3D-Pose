@@ -53,6 +53,15 @@ def show(name: str, frame, joints: np.ndarray = None):
     cv2.imshow(name, draw_pixel_grid(frame))
 
 
+def show_mask(name: str, frame, color_range: np.ndarray):
+    mask = (np.array(cv2.inRange(frame, color_range[0], color_range[1])) == 0)
+
+    mask_image = np.copy(frame)
+    mask_image[mask] = 0
+
+    cv2.imshow(name, mask_image)
+
+
 def generate_base_search_area(deviation: int, skip: int) -> list[tuple[int, int]]:
     if deviation <= 0 or skip < 0:
         return []
@@ -63,7 +72,7 @@ def generate_base_search_area(deviation: int, skip: int) -> list[tuple[int, int]
         for j in range(-deviation, deviation + 1, skip):
             search.append((i, j))
     search.sort(key=lambda a: a[0] ** 2 + a[1] ** 2)
-    search.pop(0)
+    # search.pop(0) commented out for validation via color.
     return search
 
 

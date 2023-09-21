@@ -1,3 +1,4 @@
+import copy
 import math
 import os
 import pickle
@@ -181,6 +182,11 @@ for a, b in connections_list:
     connections_dict[a].append(b)
     connections_dict[b].append(a)
 
+color_range = np.array([[0, 135, 0], [255, 255, 75]])
+
+color_validation_joints_hr = ["RWrist", "LWrist"]
+color_validation_joints = [joint_map[j] for j in color_validation_joints_hr]
+
 
 class RGBDto3DPose:
     count = 0
@@ -188,7 +194,7 @@ class RGBDto3DPose:
     def __init__(self, playback: bool, duration: float, playback_file: str | None,
                  resolution: tuple[int, int], fps: int, flip: int, countdown: int, translation: (float, float, float),
                  savefile_prefix: str | None, save_joints: bool, save_bag: bool,
-                 show_rgb: bool, show_depth: bool, show_joints: bool,
+                 show_rgb: bool, show_depth: bool, show_joints: bool, show_color_mask: bool,
                  simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool):
         self.playback = playback
         self.duration = duration
@@ -229,6 +235,7 @@ class RGBDto3DPose:
         self.show_rgb = show_rgb
         self.show_depth = show_depth
         self.show_joints = show_joints
+        self.show_color_mask = show_color_mask
 
         self.use_openpose = save_joints or show_joints
         self.colorizer = rs.colorizer()  # Create colorizer object
@@ -240,15 +247,19 @@ class RGBDto3DPose:
         if flip in [-4, 0, 4]:  # no rotation
             self.inverse_flip = lambda x, y: (round(x), round(y))
             self.flip_3d_coord = lambda c: (c[0], -c[1], c[2])
+            self.flip_rev = 0
         elif flip in [-3, 1]:  # left rotation
             self.inverse_flip = lambda x, y: (resolution[0] - round(y), round(x))
             self.flip_3d_coord = lambda c: (c[1], c[0], c[2])
+            self.flip_rev = -1
         elif flip in [-2, 2]:  # 180° rotation
             self.inverse_flip = lambda x, y: (resolution[0] - round(x), resolution[1] - round(y))
             self.flip_3d_coord = lambda c: (-c[0], c[1], c[2])
+            self.flip_rev = 2
         elif flip in [-1, 3]:  # right rotation
             self.inverse_flip = lambda x, y: (round(y), resolution[1] - round(x))
             self.flip_3d_coord = lambda c: (-c[1], -c[0], c[2])
+            self.flip_rev = 1
         else:
             raise ValueError("Rotation should be in range [-4, 4]")
 
@@ -416,6 +427,8 @@ class RGBDto3DPose:
                 helper.show("RGB-Stream", color_image)
             if self.show_depth:
                 helper.show("Depth-Stream", depth_image)
+        if self.show_color_mask:
+            helper.show_mask("Color-Mask-Stream", color_image, color_range)
 
     def get_frames(self) -> tuple[any, np.ndarray, any, np.ndarray]:
         # Wait for the next set of frames from the camera
@@ -430,7 +443,7 @@ class RGBDto3DPose:
         depth_frame = self.spatial_filter.process(depth_frame)
         depth_frame = self.temporal_filter.process(depth_frame)
         depth_frame = self.disparity2depth.process(depth_frame)
-        depth_frame = self.hole_filling_filter.process(depth_frame)
+        # depth_frame = self.hole_filling_filter.process(depth_frame)
         color_frame = frames.get_color_frame()
 
         # Colorize depth frame to jet colormap
@@ -465,16 +478,6 @@ class RGBDto3DPose:
 
 
     def validate_joints(self, joints_3d: np.ndarray, joints_2d: np.ndarray, confidences: np.ndarray, depth_frame, color_image: np.ndarray) -> np.ndarray:
-        """def val_length(name: str) -> bool:
-            joint_id1, joint_id2 = connections[name]
-            l_min, l_max = lengths[name]
-            return l_min <= np.linalg.norm(joints[joint_id2] - joints[joint_id1]) <= l_max
-
-        def val_depth(name: str) -> bool:
-            joint_id1, joint_id2 = connections[name]
-            deviation = depth_deviations[name]
-            return deviation < 0 or abs(joints[joint_id1, 2] - joints[joint_id2, 2]) <= deviation"""
-
         def validate_joint(connection: tuple[int, int]) -> bool:
             l_min, l_max = lengths[connection]
             deviation = depth_deviations[connection]
@@ -503,13 +506,13 @@ class RGBDto3DPose:
                 # if joint is detected but not validated try to correct depth
                 if val_joints[i, 2] != 0 and not (any(val[i]) or any(val[:, i])):
                     # flip the current pixel to camera coordinate system
-                    x, y = self.inverse_flip(joints_2d[i, 0], joints_2d[i, 1])
+                    x_flipped, y_flipped = self.inverse_flip(joints_2d[i, 0], joints_2d[i, 1])
                     # generate search pixels around joint
-                    for x_search, y_search in helper.generate_search_pixels((x, y), i, search_areas, self.resolution):    # for each pixel in search area
+                    for x_search, y_search in helper.generate_search_pixels((x_flipped, y_flipped), i, search_areas, self.resolution):    # for each pixel in search area
                         try:
                             depth = depth_frame.get_distance(x_search, y_search)    # get the depth at this pixel
                             # get coordinate of original x,y but with the new depth
-                            coord = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x, y), depth=depth)
+                            coord = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x_flipped, y_flipped), depth=depth)
                             val_joints[i] = self.flip_3d_coord(coord)   # reorder it from y,x,z to x,y,z
 
                             # try if any connection validates successfully then break out and continue with the next joint
@@ -531,9 +534,23 @@ class RGBDto3DPose:
             if not (any(val[i]) or any(val[:, i])):
                 val_joints[i, 2] = 0
 
-            # remove joints with low confidence
-            # if confidences[i] < 0:
-                # val_joints[i] = 0"""
+        # TODO: color validation before length/depth validation, since this overwrites anyway. Do something with val to make it work
+        color_image = np.rot90(color_image, k=self.flip_rev)
+        for color_joint in color_validation_joints:
+            if val_joints[color_joint, 2] == 0:
+                x_flipped, y_flipped = self.inverse_flip(joints_2d[color_joint, 0], joints_2d[color_joint, 1])
+                for x_search, y_search in helper.generate_search_pixels((x_flipped, y_flipped), color_joint, search_areas, self.resolution):
+                    color = color_image[y_search, x_search]
+                    if all(np.greater_equal(color_range[1], color)) and all(np.greater_equal(color, color_range[0])):
+                        try:
+                            depth = depth_frame.get_distance(x_search, y_search)    # get the depth at this pixel
+                            # get coordinate of original x,y but with the new depth
+                            if depth > 0:
+                                coord = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x_flipped, y_flipped), depth=depth)
+                                val_joints[color_joint] = self.flip_3d_coord(coord)   # reorder it from y,x,z to x,y,z
+                                val[color_joint, color_joint] = True
+                        except RuntimeError:  # joint outside of image
+                            print("This shouldn't happen during correction!")
 
         # reduce head to nose
         if all(val_joints[0] == 0):  # nose not detected
@@ -568,24 +585,24 @@ class RGBDto3DPose:
 
 def stream(savefile_prefix: str | None = None, save_joints: bool = False, save_bag: bool = False, duration: float = float("inf"),
            resolution: tuple[int, int] = (480, 270), fps: int = 30, flip: int = 1, countdown: int = 0, translation=(0, 0, 0),
-           show_rgb: bool = True, show_depth: bool = True, show_joints: bool = True,
+           show_rgb: bool = True, show_depth: bool = True, show_joints: bool = True, show_color_mask: bool = False,
            simulate_limbs: bool = True, simulate_joints: bool = True, simulate_joint_connections: bool = True):
     cl = RGBDto3DPose(playback=False, duration=duration, playback_file=None,
                       resolution=resolution, fps=fps, flip=flip, countdown=countdown, translation=translation,
                       savefile_prefix=savefile_prefix, save_joints=save_joints, save_bag=save_bag,
-                      show_rgb=show_rgb, show_depth=show_depth, show_joints=show_joints,
+                      show_rgb=show_rgb, show_depth=show_depth, show_joints=show_joints, show_color_mask=show_color_mask,
                       simulate_limbs=simulate_limbs, simulate_joints=simulate_joints, simulate_joint_connections=simulate_joint_connections)
     cl.run()
 
 
 def playback(playback_file: str, savefile_prefix: str | None = None, save_joints: bool = False, save_bag: bool = False, duration: float = -1,
              resolution: tuple[int, int] = (480, 270), fps: int = 30, flip: int = 1, translation=(0, 0, 0),
-             show_rgb: bool = True, show_depth: bool = True, show_joints: bool = True,
+             show_rgb: bool = True, show_depth: bool = True, show_joints: bool = True, show_color_mask: bool = False,
              simulate_limbs: bool = True, simulate_joints: bool = True, simulate_joint_connections: bool = True):
     cl = RGBDto3DPose(playback=True, duration=duration, playback_file=playback_file,
                       resolution=resolution, fps=fps, flip=flip, countdown=0, translation=translation,
                       savefile_prefix=savefile_prefix, save_joints=save_joints, save_bag=save_bag,
-                      show_rgb=show_rgb, show_depth=show_depth, show_joints=show_joints,
+                      show_rgb=show_rgb, show_depth=show_depth, show_joints=show_joints, show_color_mask=show_color_mask,
                       simulate_limbs=simulate_limbs, simulate_joints=simulate_joints, simulate_joint_connections=simulate_joint_connections)
     cl.run()
 
@@ -600,7 +617,7 @@ if __name__ == '__main__':
     # stream(countdown=3, translation=cam_translation, rotate=2, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False, simulate_joint_connections=False, simulate_limbs=True)
 
     stream(translation=cam_translation, flip=0, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False,
-          simulate_joint_connections=False, simulate_limbs=True)
+          simulate_joint_connections=False, simulate_limbs=True, show_color_mask=True)
 
     #stream(savefile_prefix="test_val", save_joints = False, save_bag = True, flip = 0, countdown = 2, translation=cam_translation,
      #      show_rgb = True, show_depth = True, show_joints = True,

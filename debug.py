@@ -66,7 +66,7 @@ def debug_color_mask(resolution: tuple[int, int] = (480, 270), fps: int = 30, fl
     cl = main.RGBDto3DPose(playback=playback_file is not None, duration=-1, playback_file=playback_file,
                            resolution=resolution, fps=fps, flip=flip, countdown=0, translation=None,
                            savefile_prefix=None, save_joints=False, save_bag=False,
-                           show_rgb=False, show_depth=False, show_joints=False,
+                           show_rgb=False, show_depth=False, show_joints=False, show_color_mask=False,
                            simulate_limbs=False, simulate_joints=False, simulate_joint_connections=False)
 
     cl.prepare()
@@ -80,16 +80,9 @@ def debug_color_mask(resolution: tuple[int, int] = (480, 270), fps: int = 30, fl
         while key != 27:
             color_frame, color_image, depth_frame, depth_image = cl.get_frames()
 
-            mask = (np.array(cv2.inRange(color_image,
-                                         np.array([color_ranges["lower blue"], color_ranges["lower green"], color_ranges["lower red"]]),
-                                         np.array([color_ranges["upper blue"], color_ranges["upper green"], color_ranges["upper red"]])))
-                    == 0)
-
-            mask_image = np.copy(color_image)
-            mask_image[mask] = 0
-
-            # Display the result
-            cv2.imshow('Debug-Mask', mask_image)
+            helper.show_mask("Debug-Mask", color_image,
+                             np.array([[color_ranges["lower blue"], color_ranges["lower green"], color_ranges["lower red"]],
+                                       [color_ranges["upper blue"], color_ranges["upper green"], color_ranges["upper red"]]]))
             cv2.imshow("Debug-Color", color_image)
 
             root.update()
@@ -369,4 +362,4 @@ def debug_length(mode: int, output_filename: str = None, custom_connections=None
 
 
 if __name__ == '__main__':
-    debug_length(0)
+    debug_color_mask()
