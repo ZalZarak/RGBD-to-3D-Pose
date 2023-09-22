@@ -467,10 +467,12 @@ class RGBDto3DPose:
             try:
                 x, y = self.inverse_flip(x, y)
                 depth = depth_frame.get_distance(x, y)
-
-                # get 3d coordinates and reorder them from y,x,z to x,y,z
-                coord = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x, y), depth=depth)
-                coords[i] = self.flip_3d_coord(coord)  # coord[1], coord[0], coord[2]
+                if depth > 0:
+                    # get 3d coordinates and reorder them from y,x,z to x,y,z
+                    coord = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x, y), depth=depth)
+                    coords[i] = self.flip_3d_coord(coord)  # coord[1], coord[0], coord[2]
+                else:
+                    coords[i] = 0
             except RuntimeError:  # joint outside of picture
                 pass
 
@@ -479,6 +481,9 @@ class RGBDto3DPose:
 
     def validate_joints(self, joints_3d: np.ndarray, joints_2d: np.ndarray, confidences: np.ndarray, depth_frame, color_image: np.ndarray) -> np.ndarray:
         def validate_joint(connection: tuple[int, int]) -> bool:
+            if val_joints[connection[0], 2] == 0 or val_joints[connection[1], 2] == 0:
+                return False
+
             l_min, l_max = lengths[connection]
             deviation = depth_deviations[connection]
 
@@ -486,7 +491,7 @@ class RGBDto3DPose:
                    and
                    (deviation < 0 or abs(val_joints[connection[0], 2] - val_joints[connection[1], 2]) <= deviation))  # depth validation
 
-        val = np.zeros((25, 25), dtype="bool")
+        val = np.zeros(25, dtype="bool")
 
         val_joints = np.copy(joints_3d)
 
@@ -495,7 +500,9 @@ class RGBDto3DPose:
         # for some connections also the same depth
 
         for connection in connections_list:
-            val[connection] = validate_joint(connection)
+            success = validate_joint(connection)
+            val[connection[0]] |= success
+            val[connection[1]] |= success
 
         # correct until no joint was corrected
         # theoretically it might run into infinity loop, but it always ran smoothly
@@ -504,13 +511,16 @@ class RGBDto3DPose:
             change = False
             for i in range(25):
                 # if joint is detected but not validated try to correct depth
-                if val_joints[i, 2] != 0 and not (any(val[i]) or any(val[:, i])):
+                if not val[i]:
                     # flip the current pixel to camera coordinate system
                     x_flipped, y_flipped = self.inverse_flip(joints_2d[i, 0], joints_2d[i, 1])
                     # generate search pixels around joint
                     for x_search, y_search in helper.generate_search_pixels((x_flipped, y_flipped), i, search_areas, self.resolution):    # for each pixel in search area
                         try:
                             depth = depth_frame.get_distance(x_search, y_search)    # get the depth at this pixel
+                            if depth <= 0:
+                                continue
+
                             # get coordinate of original x,y but with the new depth
                             coord = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x_flipped, y_flipped), depth=depth)
                             val_joints[i] = self.flip_3d_coord(coord)   # reorder it from y,x,z to x,y,z
@@ -519,7 +529,7 @@ class RGBDto3DPose:
                             for connected_joint in connections_dict[i]:
                                 j1, j2 = sorted((i, connected_joint))
                                 if validate_joint((j1, j2)):
-                                    val[j1, j2] = True  # to not correct those joints again
+                                    val[j1] = val[j2] = True  # to not correct those joints again
                                     change = True
                                     break  # Break the inner loop...
                             else:
@@ -531,8 +541,8 @@ class RGBDto3DPose:
 
         for i in range(25):
             # remove depth of supposedly incorrect joints
-            if not (any(val[i]) or any(val[:, i])):
-                val_joints[i, 2] = 0
+            if not val[i]:
+                val_joints[i] = 0
 
         # TODO: color validation before length/depth validation, since this overwrites anyway. Do something with val to make it work
         color_image = np.rot90(color_image, k=self.flip_rev)
@@ -548,7 +558,7 @@ class RGBDto3DPose:
                             if depth > 0:
                                 coord = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x_flipped, y_flipped), depth=depth)
                                 val_joints[color_joint] = self.flip_3d_coord(coord)   # reorder it from y,x,z to x,y,z
-                                val[color_joint, color_joint] = True
+                                val[color_joint] = True
                         except RuntimeError:  # joint outside of image
                             print("This shouldn't happen during correction!")
 
