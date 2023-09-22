@@ -411,7 +411,8 @@ class RGBDto3DPose:
 
             joints_3d = self.get_3d_coords(joints_2d, depth_frame)
             joints_val = self.validate_joints(joints_3d, joints_2d, confidences, depth_frame, color_image)
-            joints_val = np.apply_along_axis(self.transform, 1, joints_val)
+            joints_val = np.apply_along_axis(self.flip_3d_coord, 1, joints_val)     # flip the coordinates into the right perspective
+            joints_val = np.apply_along_axis(self.transform, 1, joints_val)         # apply translation/rotation
 
             if self.simulate:
                 self.joints[:] = joints_val.flatten()
@@ -469,15 +470,13 @@ class RGBDto3DPose:
                 depth = depth_frame.get_distance(x, y)
                 if depth > 0:
                     # get 3d coordinates and reorder them from y,x,z to x,y,z
-                    coord = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x, y), depth=depth)
-                    coords[i] = self.flip_3d_coord(coord)  # coord[1], coord[0], coord[2]
+                    coords[i] = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x, y), depth=depth)
                 else:
                     coords[i] = 0
             except RuntimeError:  # joint outside of picture
                 pass
 
         return coords
-
 
     def validate_joints(self, joints_3d: np.ndarray, joints_2d: np.ndarray, confidences: np.ndarray, depth_frame, color_image: np.ndarray) -> np.ndarray:
         def validate_joint(connection: tuple[int, int]) -> bool:
@@ -523,8 +522,7 @@ class RGBDto3DPose:
                             depth = depth_frame.get_distance(x_search, y_search)    # get the depth at this pixel
                             if depth > 0:
                                 # get coordinate of original x,y but with the new depth
-                                coord = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x_flipped, y_flipped), depth=depth)
-                                val_joints[color_joint] = self.flip_3d_coord(coord)
+                                val_joints[color_joint] = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x_flipped, y_flipped), depth=depth)
                                 val[color_joint] = True
                                 break   # found depth, go to next joint
                         except RuntimeError:  # joint outside of image
@@ -550,8 +548,7 @@ class RGBDto3DPose:
                                 continue
 
                             # get coordinate of original x,y but with the new depth
-                            coord = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x_flipped, y_flipped), depth=depth)
-                            val_joints[i] = self.flip_3d_coord(coord)   # reorder it from y,x,z to x,y,z
+                            val_joints[i] = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x_flipped, y_flipped), depth=depth)
 
                             # try if any connection validates successfully then break out and continue with the next joint
                             for connected_joint in connections_dict[i]:
@@ -571,8 +568,6 @@ class RGBDto3DPose:
             # set supposedly incorrect joints to zero
             if not val[i]:
                 val_joints[i] = 0
-
-
 
         # reduce head to nose
         if all(val_joints[0] == 0):  # nose not detected
