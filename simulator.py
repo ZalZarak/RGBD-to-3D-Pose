@@ -342,8 +342,8 @@ def limb_coords_generator(joints: np.ndarray):
     p.disconnect()"""
 
 
-def simulate_sync(joints_sync, ready, done, simulate_shape: bool, simulate_joints: bool, simulate_joint_connections: bool):
-    sim = Simulator(simulate_shape, simulate_joints, simulate_joint_connections, joints_sync, ready, done)
+def simulate_sync(joints_sync, ready_sync, done_sync, simulate_shape: bool, simulate_joints: bool, simulate_joint_connections: bool):
+    sim = Simulator(simulate_shape, simulate_joints, simulate_joint_connections, joints_sync, ready_sync, done_sync)
     sim.run_sync()
 
 
