@@ -11,6 +11,8 @@ import pyrealsense2 as rs
 from cfonts import render as render_text
 from math import sin, cos, sqrt
 
+from numpy import pi
+
 import helper
 from old.main import visualize_points
 from openpose_handler import OpenPoseHandler
@@ -192,7 +194,8 @@ class RGBDto3DPose:
     count = 0
 
     def __init__(self, playback: bool, duration: float, playback_file: str | None,
-                 resolution: tuple[int, int], fps: int, flip: int, countdown: int, translation: (float, float, float),
+                 resolution: tuple[int, int], fps: int, flip: int, countdown: int,
+                 translation: (float, float, float), rotation: (float, float, float),
                  savefile_prefix: str | None, save_joints: bool, save_bag: bool,
                  show_rgb: bool, show_depth: bool, show_joints: bool, show_color_mask: bool,
                  simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool):
@@ -201,9 +204,9 @@ class RGBDto3DPose:
         self.playback_file = playback_file
 
         translation = np.array(translation)
-        self.transform = lambda m: m + translation if m[2] != 0 else m
+        # self.transform = lambda m: m + translation if m[2] != 0 else m
 
-        """rotx, roty, rotz = rotation #tuple(map(lambda x: -x, rotation))
+        rotx, roty, rotz = rotation #tuple(map(lambda x: -x, rotation))
         x_rot_mat = np.array([
             [1,         0,          0],
             [0, cos(rotx), -sin(rotx)],
@@ -221,10 +224,12 @@ class RGBDto3DPose:
         ])
         rot_mat = x_rot_mat @ y_rot_mat @ z_rot_mat
 
-        if rotation == (0, 0, 0):
+        if rotation == (0, 0, 0) and translation == (0, 0, 0):  # less calculation
+            self.transform = lambda m: m
+        elif rotation == (0, 0, 0):                             # less calculation
             self.transform = lambda m: m + translation if m[2] != 0 else m
         else:
-            self.transform = lambda m: rot_mat @ (m + translation) if m[2] != 0 else m"""
+            self.transform = lambda m: rot_mat @ (m + translation) if m[2] != 0 else m
 
         self.resolution = resolution
         self.fps = fps
@@ -601,11 +606,11 @@ class RGBDto3DPose:
 
 
 def stream(savefile_prefix: str | None = None, save_joints: bool = False, save_bag: bool = False, duration: float = float("inf"),
-           resolution: tuple[int, int] = (480, 270), fps: int = 30, flip: int = 1, countdown: int = 0, translation=(0, 0, 0),
+           resolution: tuple[int, int] = (480, 270), fps: int = 30, flip: int = 1, countdown: int = 0, translation=(0, 0, 0), rotation=(0, 0, 0),
            show_rgb: bool = True, show_depth: bool = True, show_joints: bool = True, show_color_mask: bool = False,
            simulate_limbs: bool = True, simulate_joints: bool = True, simulate_joint_connections: bool = True):
     cl = RGBDto3DPose(playback=False, duration=duration, playback_file=None,
-                      resolution=resolution, fps=fps, flip=flip, countdown=countdown, translation=translation,
+                      resolution=resolution, fps=fps, flip=flip, countdown=countdown, translation=translation, rotation=rotation,
                       savefile_prefix=savefile_prefix, save_joints=save_joints, save_bag=save_bag,
                       show_rgb=show_rgb, show_depth=show_depth, show_joints=show_joints, show_color_mask=show_color_mask,
                       simulate_limbs=simulate_limbs, simulate_joints=simulate_joints, simulate_joint_connections=simulate_joint_connections)
@@ -613,11 +618,11 @@ def stream(savefile_prefix: str | None = None, save_joints: bool = False, save_b
 
 
 def playback(playback_file: str, savefile_prefix: str | None = None, save_joints: bool = False, save_bag: bool = False, duration: float = -1,
-             resolution: tuple[int, int] = (480, 270), fps: int = 30, flip: int = 1, translation=(0, 0, 0),
+             resolution: tuple[int, int] = (480, 270), fps: int = 30, flip: int = 1, translation=(0, 0, 0), rotation=(0, 0, 0),
              show_rgb: bool = True, show_depth: bool = True, show_joints: bool = True, show_color_mask: bool = False,
              simulate_limbs: bool = True, simulate_joints: bool = True, simulate_joint_connections: bool = True):
     cl = RGBDto3DPose(playback=True, duration=duration, playback_file=playback_file,
-                      resolution=resolution, fps=fps, flip=flip, countdown=0, translation=translation,
+                      resolution=resolution, fps=fps, flip=flip, countdown=0, translation=translation, rotation=rotation,
                       savefile_prefix=savefile_prefix, save_joints=save_joints, save_bag=save_bag,
                       show_rgb=show_rgb, show_depth=show_depth, show_joints=show_joints, show_color_mask=show_color_mask,
                       simulate_limbs=simulate_limbs, simulate_joints=simulate_joints, simulate_joint_connections=simulate_joint_connections)
@@ -633,8 +638,8 @@ if __name__ == '__main__':
 
     # stream(countdown=3, translation=cam_translation, rotate=2, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False, simulate_joint_connections=False, simulate_limbs=True)
 
-    stream(translation=cam_translation, flip=0, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False,
-          simulate_joint_connections=False, simulate_limbs=True, show_color_mask=True)
+    stream(translation=cam_translation, rotation=cam_rotation, flip=0, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False,
+           simulate_joint_connections=False, simulate_limbs=True, show_color_mask=True)
 
     #stream(savefile_prefix="test_val", save_joints = False, save_bag = True, flip = 0, countdown = 2, translation=cam_translation,
      #      show_rgb = True, show_depth = True, show_joints = True,
