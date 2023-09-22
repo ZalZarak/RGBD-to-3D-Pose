@@ -499,12 +499,40 @@ class RGBDto3DPose:
         # The body should have correct length
         # for some connections also the same depth
 
+        # validate each joint through at least one connection which is valid by length and depth
         for connection in connections_list:
             success = validate_joint(connection)
+            # if validation is successful mark both joints as validated, otherwise leave them as is
             val[connection[0]] |= success
             val[connection[1]] |= success
 
-        # correct until no joint was corrected
+        # search around the joint for the right color
+        # if found, define the 3d coordinate of this joint by original x,y and the found depth
+        # this will accept any positive depth without further validation
+        # make sure to have very precise color range, e.g. detected pixels not belonging to corresponding limbs should be nearly zero
+        color_image = np.rot90(color_image, k=self.flip_rev)    # rotate color_image back to fit the depth_frame
+        for color_joint in color_validation_joints:     # iterate through corresponding, unvalidated joints
+            if not val[color_joint]:
+                # flip the current pixel to camera coordinate system
+                x_flipped, y_flipped = self.inverse_flip(joints_2d[color_joint, 0], joints_2d[color_joint, 1])
+                # generate search pixels around joint
+                for x_search, y_search in helper.generate_search_pixels((x_flipped, y_flipped), color_joint, search_areas, self.resolution):
+                    color = color_image[y_search, x_search]
+                    if all(np.greater_equal(color_range[1], color)) and all(np.greater_equal(color, color_range[0])):
+                        try:
+                            depth = depth_frame.get_distance(x_search, y_search)    # get the depth at this pixel
+                            if depth > 0:
+                                # get coordinate of original x,y but with the new depth
+                                coord = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x_flipped, y_flipped), depth=depth)
+                                val_joints[color_joint] = self.flip_3d_coord(coord)
+                                val[color_joint] = True
+                                break   # found depth, go to next joint
+                        except RuntimeError:  # joint outside of image
+                            print("This shouldn't happen during color correction!")
+
+        # search around the joint for the right depth e.g. where it validates through one connection
+        # if found, define the 3d coordinate of this joint by original x,y and the found depth
+        # try correcting until no joint was corrected
         # theoretically it might run into infinity loop, but it always ran smoothly
         change = True
         while change:
@@ -540,27 +568,11 @@ class RGBDto3DPose:
                             pass
 
         for i in range(25):
-            # remove depth of supposedly incorrect joints
+            # set supposedly incorrect joints to zero
             if not val[i]:
                 val_joints[i] = 0
 
-        # TODO: color validation before length/depth validation, since this overwrites anyway. Do something with val to make it work
-        color_image = np.rot90(color_image, k=self.flip_rev)
-        for color_joint in color_validation_joints:
-            if val_joints[color_joint, 2] == 0:
-                x_flipped, y_flipped = self.inverse_flip(joints_2d[color_joint, 0], joints_2d[color_joint, 1])
-                for x_search, y_search in helper.generate_search_pixels((x_flipped, y_flipped), color_joint, search_areas, self.resolution):
-                    color = color_image[y_search, x_search]
-                    if all(np.greater_equal(color_range[1], color)) and all(np.greater_equal(color, color_range[0])):
-                        try:
-                            depth = depth_frame.get_distance(x_search, y_search)    # get the depth at this pixel
-                            # get coordinate of original x,y but with the new depth
-                            if depth > 0:
-                                coord = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x_flipped, y_flipped), depth=depth)
-                                val_joints[color_joint] = self.flip_3d_coord(coord)   # reorder it from y,x,z to x,y,z
-                                val[color_joint] = True
-                        except RuntimeError:  # joint outside of image
-                            print("This shouldn't happen during correction!")
+
 
         # reduce head to nose
         if all(val_joints[0] == 0):  # nose not detected
