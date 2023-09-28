@@ -11,8 +11,7 @@ import pyrealsense2 as rs
 
 import helper
 import main
-from config import config
-
+from config import config, overwrite
 
 color_ranges = {
     "upper blue": config["Main"]["color_range"][1][0],
@@ -44,15 +43,24 @@ def debug_color_mask():
         except ValueError:
             pass
 
-    root = tk.Tk()
-    root.title("Variable Manipulation")
+    def print_values():
+        color = [
+            [color_ranges["lower blue"], color_ranges["lower green"], color_ranges["lower red"]],
+            [color_ranges["upper blue"], color_ranges["upper green"], color_ranges["upper red"]]
+        ]
+        print("")
+        print(f"[ [{color[0][0]}, {color[0][1]}, {color[0][2]}], [{color[1][0]}, {color[1][1]}, {color[1][2]}] ]")
+        print("")
+
+    gui = tk.Tk()
+    gui.title("Color Range")
 
     values_gui = {}
     sliders_gui = {}
 
     for var_name in color_ranges.keys():
         values_gui[var_name] = tk.IntVar(value=color_ranges[var_name])
-        frame = tk.Frame(root)
+        frame = tk.Frame(gui)
         frame.pack()
 
         label = tk.Label(frame, text=var_name)
@@ -67,6 +75,9 @@ def debug_color_mask():
         entry.bind("<FocusOut>", lambda event, var_name=var_name, entry=entry: update_value(var_name, entry.get()))
 
         sliders_gui[var_name].bind("<Motion>", lambda event, var_name=var_name: update_slider(var_name))
+
+    print_button = tk.Button(gui, text="Print", command=print_values)
+    print_button.pack(side=tk.BOTTOM, anchor=tk.SE)
 
     debug_config = copy.deepcopy(config["Main"])
     debug_config["save_joints"] = debug_config["save_bag"] = debug_config["show_rgb"] = debug_config["show_depth"] = debug_config["show_joints"] \
@@ -89,7 +100,7 @@ def debug_color_mask():
                                        [color_ranges["upper blue"], color_ranges["upper green"], color_ranges["upper red"]]]))
             cv2.imshow("Debug-Color", color_image)
 
-            root.update()
+            gui.update()
 
             key = cv2.waitKey(1)
     finally:
@@ -124,6 +135,12 @@ def debug_search_area():
             search_areas[cl.joint_map[var_name]] = helper.generate_base_search_area(search_areas_hr[var_name][0], search_areas_hr[var_name][1])
         except ValueError:
             pass
+
+    def print_values():
+        print("")
+        for k, v in search_areas_hr.items():
+            print(f"{k}: {v}")
+        print("")
 
     values_gui = {}
     sliders_gui = {}
@@ -177,6 +194,9 @@ def debug_search_area():
         # Bind slider updates to the slider movement
         sliders_gui[var_name][0].bind("<Motion>", lambda event, var_name=var_name, value_idx=0: update_slider(var_name, value_idx))
         sliders_gui[var_name][1].bind("<Motion>", lambda event, var_name=var_name, value_idx=1: update_slider(var_name, value_idx))
+
+    print_button = tk.Button(gui, text="Print", command=print_values)
+    print_button.pack(side=tk.BOTTOM, anchor=tk.SE)
 
     cv2.namedWindow("Debug-Search-Area")
 
@@ -252,6 +272,12 @@ def debug_length(mode: int, output_filename: str = None, custom_connections=None
         except ValueError:
             pass
 
+    def print_values():
+        print("")
+        for k, v in cl.lengths_hr.items() if mode == 0 else cl.depth_deviations_hr.items():
+            print(f"{k}: {v}")
+        print("")
+
     values_gui = {}
     sliders_gui = {}
     entry_fields = {}
@@ -309,6 +335,9 @@ def debug_length(mode: int, output_filename: str = None, custom_connections=None
         sliders_gui[var_name][0].bind("<Motion>", lambda event, var_name=var_name, value_idx=0: update_slider(var_name, value_idx))
         if mode == 0:
             sliders_gui[var_name][1].bind("<Motion>", lambda event, var_name=var_name, value_idx=1: update_slider(var_name, value_idx))
+
+    print_button = tk.Button(gui, text="Print", command=print_values)
+    print_button.pack(side=tk.BOTTOM, anchor=tk.SE)
 
     cv2.namedWindow("Debug-Length")
 
