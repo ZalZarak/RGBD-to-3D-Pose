@@ -8,154 +8,19 @@ from pathlib import Path
 import cv2
 import numpy as np
 import pyrealsense2 as rs
+import yaml
 from cfonts import render as render_text
 from math import sin, cos, sqrt
 
 from numpy import pi
 
 import helper
+from config import config
 from old.main import visualize_points
 from openpose_handler import OpenPoseHandler
 from simulator import simulate_sync
 
 import multiprocessing as mp
-
-# as defined in OpenPose
-joint_map = {
-    'Nose': 0,
-    'Neck': 1,
-    'RShoulder': 2,
-    'RElbow': 3,
-    'RWrist': 4,
-    'LShoulder': 5,
-    'LElbow': 6,
-    'LWrist': 7,
-    'MidHip': 8,
-    'RHip': 9,
-    'RKnee': 10,
-    'RAnkle': 11,
-    'LHip': 12,
-    'LKnee': 13,
-    'LAnkle': 14,
-    'REye': 15,
-    'LEye': 16,
-    'REar': 17,
-    'LEar': 18,
-    'LBigToe': 19,
-    'LSmallToe': 20,
-    'LHeel': 21,
-    'RBigToe': 22,
-    'RSmallToe': 23,
-    'RHeel': 24,
-    'Background': 25}
-
-joint_map_rev = {v: k for k, v in joint_map.items()}
-
-# must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
-lengths_hr = {
-    'Nose-Neck': (0.125, 0.275),
-    'Nose-LEye': (0.03, 0.06),
-    'Nose-REye': (0.03, 0.06),
-    'LEye-LEar': (0.07, 0.12),  # with this deviation down it will invalidate front view of face but make it robuster to occlusion. If front, eye detection should work
-    'REye-REar': (0.07, 0.12),
-    'Neck-LShoulder': (0.15, 0.21),
-    'Neck-RShoulder': (0.15, 0.21),
-    'LShoulder-LElbow': (0.27, 0.36),
-    'RShoulder-RElbow': (0.27, 0.36),
-    'LElbow-LWrist': (0.26, 0.32),
-    'RElbow-RWrist': (0.26, 0.32),
-    'Neck-MidHip': (0.37, 0.595),
-    'MidHip-LHip': (0.1, 0.13),
-    'MidHip-RHip': (0.1, 0.13),
-    'LHip-LKnee': (0.38, 0.49),
-    'RHip-RKnee': (0.38, 0.49),
-    'LKnee-LAnkle': (0.44, 0.51),
-    'RKnee-RAnkle': (0.44, 0.51),
-    'LAnkle-LBigToe': (0.15, 0.21),
-    'RAnkle-RBigToe': (0.15, 0.21)
-}
-
-# must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
-depth_deviations_hr = {
-    'Nose-Neck': 0.2,
-    'Nose-LEye': 0.04,
-    'Nose-REye': 0.04,
-    'LEye-LEar': 0.07,  # with this deviation down it will invalidate front view of face but make it robuster to occlusion. If front, eye detection should work
-    'REye-REar': 0.07,
-    'Neck-LShoulder': 0.17,
-    'Neck-RShoulder': 0.17,
-    'LShoulder-LElbow': -1,
-    'RShoulder-RElbow': -1,
-    'LElbow-LWrist': -1,
-    'RElbow-RWrist': -1,
-    'Neck-MidHip': 0.2,
-    'MidHip-LHip': 0.09,
-    'MidHip-RHip': 0.09,
-    'LHip-LKnee': -1,
-    'RHip-RKnee': -1,
-    'LKnee-LAnkle': -1,
-    'RKnee-RAnkle': -1,
-    'LAnkle-LBigToe': -1,
-    'RAnkle-RBigToe': -1
-}
-
-# must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
-search_areas_hr = {     # (deviation, skip) in pixels
-    'Nose': (8, 3),
-    'Neck': (12, 3),
-    'RShoulder': (9, 2),
-    'RElbow': (12, 2),
-    'RWrist': (12, 2),
-    'LShoulder': (9, 2),
-    'LElbow': (12, 2),
-    'LWrist': (12, 2),
-    'MidHip': (15, 4),
-    'RHip': (6, 5),
-    'RKnee': (5, 4),
-    'RAnkle': (4, 3),
-    'LHip': (6, 5),
-    'LKnee': (5, 4),
-    'LAnkle': (4, 3),
-    'REye': (0, 0),
-    'LEye': (0, 0),
-    'REar': (0, 0),
-    'LEar': (0, 0),
-    'LBigToe': (0, 0),
-    'LSmallToe': (0, 0),
-    'LHeel': (0, 0),
-    'RBigToe': (0, 0),
-    'RSmallToe': (0, 0),
-    'RHeel': (0, 0),
-    'Background': (0, 0)
-}
-
-lengths = {}
-for k, v in lengths_hr.items():
-    k1, k2 = k.split('-')
-    lengths[(joint_map[k1], joint_map[k2])] = v
-
-depth_deviations = {}
-for k, v in depth_deviations_hr.items():
-    k1, k2 = k.split('-')
-    depth_deviations[(joint_map[k1], joint_map[k2])] = v
-
-search_areas = {}
-for k, v in search_areas_hr.items():
-    search_areas[joint_map[k]] = helper.generate_base_search_area(v[0], v[1])
-
-# for all tuples (a,b): a<b
-connections_list = [(0, 1), (0, 15), (0, 16), (15, 17), (16, 18), (1, 2), (1, 5), (2, 3), (5, 6), (3, 4), (6, 7),
-                    (1, 8), (8, 9), (8, 12), (9, 10), (12, 13), (10, 11), (13, 14), (11, 22), (14, 19)]
-
-connections_dict = {k: [] for k in range(26)}
-for a, b in connections_list:
-    connections_dict[a].append(b)
-    connections_dict[b].append(a)
-
-color_range = np.array([[0, 135, 0], [255, 255, 75]])
-
-color_validation_joints_hr = ["RWrist", "LWrist"]
-color_validation_joints = [joint_map[j] for j in color_validation_joints_hr]
 
 
 class RGBDto3DPose:
@@ -166,7 +31,14 @@ class RGBDto3DPose:
                  translation: (float, float, float), rotation: (float, float, float),
                  savefile_prefix: str | None, save_joints: bool, save_bag: bool,
                  show_rgb: bool, show_depth: bool, show_joints: bool, show_color_mask: bool,
-                 simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool):
+                 simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool,
+                 visual_preset: str, exposure: int, gain: int, laser_power: int, depth_units: float,
+                 decimation_filter: bool, depth2disparity: bool, spatial_filter: bool,
+                 temporal_filter: bool, disparity2depth: bool, hole_filling_filter: int,
+                 joint_map: dict, connections_hr: list[tuple[str, str]], color_validation_joints_hr: list[str],
+                 color_range: tuple[tuple[int, int, int], tuple[int, int, int]], lengths_hr: dict, depth_deviations_hr: dict,
+                 search_areas_hr: dict
+                 ):
         """
         Main class to handle entire pipeline. Receives streams from Intel RealSense Depth Camera, pushes to OpenPose for Joint Positions,
         extracts 3D coordinates, validates and corrects them through different techniques. Starts Simulator as separate process and pushes
@@ -307,12 +179,71 @@ class RGBDto3DPose:
 
         # define filters
         self.align = rs.align(rs.stream.color)
-        self.decimation_filter = rs.decimation_filter()
-        self.depth2disparity = rs.disparity_transform(True)
-        self.spatial_filter = rs.spatial_filter()
-        self.temporal_filter = rs.temporal_filter()
-        self.disparity2depth = rs.disparity_transform(False)
-        self.hole_filling_filter = rs.hole_filling_filter(2)
+        self.decimation_filter = rs.decimation_filter() if decimation_filter else helper.NoFilter()
+        self.depth2disparity = rs.disparity_transform(True) if depth2disparity else helper.NoFilter()
+        self.spatial_filter = rs.spatial_filter() if spatial_filter else helper.NoFilter()
+        self.temporal_filter = rs.temporal_filter() if temporal_filter else helper.NoFilter()
+        self.disparity2depth = rs.disparity_transform(False) if disparity2depth else helper.NoFilter()
+        self.hole_filling_filter = rs.hole_filling_filter(hole_filling_filter) if hole_filling_filter >= 0 else helper.NoFilter()
+
+        self.visual_preset = visual_preset
+        self.exposure = exposure
+        self.gain = gain
+        self.laser_power = laser_power
+        self.depth_units = depth_units
+
+        for c1, c2 in connections_hr:
+            if joint_map[c1] >= joint_map[c2]:
+                raise ValueError(f"connections_list: for all tuples (a,b): joint_map[a] < joint_map[b], but joint_map[{c1}] >= joint_map[{c2}]")
+        for c in color_validation_joints_hr:
+            if c not in joint_map.keys():
+                raise ValueError(f"color_validation_joints_hr: {c} not in joint_map")
+        for a in color_range:
+            for b in a:
+                if not 0 <= b <= 255:
+                    raise ValueError(f"color_range: values between 0 and 255")
+        for k in lengths_hr.keys():
+            k1, k2 = k.split("-")
+            if joint_map[k1] >= joint_map[k2]:
+                raise ValueError(f"lengths_hr: for all keys 'j1-j2': joint_map[j1] < joint_map[j2], but joint_map[{k1}] >= joint_map[{k2}]")
+        for k in depth_deviations_hr.keys():
+            k1, k2 = k.split("-")
+            if joint_map[k1] >= joint_map[k2]:
+                raise ValueError(f"depth_deviations_hr: for all keys 'j1-j2': joint_map[j1] < joint_map[j2], but joint_map[{k1}] >= joint_map[{k2}]")
+
+
+        self.joint_map = joint_map
+        self.connections_hr = connections_hr
+        self.color_validation_joints_hr = color_validation_joints_hr
+        self.color_range = np.array(color_range)
+        self.lengths_hr = lengths_hr
+        self.depth_deviations_hr = depth_deviations_hr
+        self.search_areas_hr = search_areas_hr
+
+        self.joint_map_rev = {v: k for k, v in joint_map.items()}
+
+        self.connections = [(joint_map[c[0]], joint_map[c[1]]) for c in connections_hr]
+
+        self.lengths = {}
+        for k, v in lengths_hr.items():
+            k1, k2 = k.split('-')
+            self.lengths[(joint_map[k1], joint_map[k2])] = v
+
+        self.depth_deviations = {}
+        for k, v in depth_deviations_hr.items():
+            k1, k2 = k.split('-')
+            self.depth_deviations[(joint_map[k1], joint_map[k2])] = v
+
+        self.search_areas = {}
+        for k, v in search_areas_hr.items():
+            self.search_areas[joint_map[k]] = helper.generate_base_search_area(v[0], v[1])
+
+        self.connections_dict = {k: [] for k in range(26)}
+        for a, b in self.connections:
+            self.connections_dict[a].append(b)
+            self.connections_dict[b].append(a)
+
+        self.color_validation_joints = [joint_map[j] for j in color_validation_joints_hr]
 
     def run(self):
         """
@@ -394,12 +325,12 @@ class RGBDto3DPose:
             # configure camera
             depth_sensor = pipeline_profile.get_device().first_depth_sensor()
             for i in range(int(depth_sensor.get_option_range(rs.option.visual_preset).max)):
-                if depth_sensor.get_option_value_description(rs.option.visual_preset, i) == "High Density":
+                if depth_sensor.get_option_value_description(rs.option.visual_preset, i) == self.visual_preset:
                     depth_sensor.set_option(rs.option.visual_preset, i)
-            depth_sensor.set_option(rs.option.exposure, 16000)
-            depth_sensor.set_option(rs.option.gain, 16)
-            depth_sensor.set_option(rs.option.laser_power, 360)
-            depth_sensor.set_option(rs.option.depth_units, 0.0005)
+            depth_sensor.set_option(rs.option.exposure, self.exposure)
+            depth_sensor.set_option(rs.option.gain, self.gain)
+            depth_sensor.set_option(rs.option.laser_power, self.laser_power)
+            depth_sensor.set_option(rs.option.depth_units, self.depth_units)
 
         self.pipeline = pipeline
 
@@ -419,7 +350,7 @@ class RGBDto3DPose:
             if self.show_rgb:
                 helper.show("RGB-Stream", joint_image if self.show_joints else color_image)
             if self.show_depth:
-                helper.show("Depth-Stream", depth_image, joints_2d if self.show_joints else None)
+                helper.show("Depth-Stream", depth_image, joints_2d if self.show_joints else None, self.connections)
 
             joints_2d_camera_space = np.apply_along_axis(self.inverse_flip, 1, joints_2d)    # translate from image space to camera space
             color_image_camera_space = np.rot90(color_image, k=self.flip_rev)  # rotate color_image back to camera space
@@ -438,7 +369,7 @@ class RGBDto3DPose:
             if self.show_depth:
                 helper.show("Depth-Stream", depth_image)
         if self.show_color_mask:
-            helper.show_mask("Color-Mask-Stream", color_image, color_range)
+            helper.show_mask("Color-Mask-Stream", color_image, self.color_range)
 
     def get_frames(self) -> tuple[any, np.ndarray, any, np.ndarray]:
         """
@@ -453,12 +384,12 @@ class RGBDto3DPose:
 
         # Get depth frame
         depth_frame = frames.get_depth_frame()
-        # depth_frame = self.decimation_filter.process(depth_frame)
+        depth_frame = self.decimation_filter.process(depth_frame)
         depth_frame = self.depth2disparity.process(depth_frame)
         depth_frame = self.spatial_filter.process(depth_frame)
         depth_frame = self.temporal_filter.process(depth_frame)
         depth_frame = self.disparity2depth.process(depth_frame)
-        # depth_frame = self.hole_filling_filter.process(depth_frame)
+        depth_frame = self.hole_filling_filter.process(depth_frame)
         color_frame = frames.get_color_frame()
 
         # Colorize depth frame to jet colormap
@@ -493,8 +424,8 @@ class RGBDto3DPose:
             if val_joints[connection[0], 2] == 0 or val_joints[connection[1], 2] == 0:
                 return False
 
-            l_min, l_max = lengths[connection]
-            deviation = depth_deviations[connection]
+            l_min, l_max = self.lengths[connection]
+            deviation = self.depth_deviations[connection]
 
             return ((l_min <= np.linalg.norm(val_joints[connection[1]] - val_joints[connection[0]]) <= l_max)  # length validation
                    and
@@ -521,7 +452,7 @@ class RGBDto3DPose:
         # for some connections also the same depth
 
         # validate each joint through at least one connection which is valid by length and depth
-        for connection in connections_list:
+        for connection in self.connections:
             success = validate_joint(connection)
             # if validation is successful mark both joints as validated, otherwise leave them as is
             val[connection[0]] |= success
@@ -531,14 +462,14 @@ class RGBDto3DPose:
         # if found, define the 3d coordinate of this joint by original x,y and the found depth
         # this will accept any positive depth without further validation
         # make sure to have very precise color range, e.g. detected pixels not belonging to corresponding limbs should be nearly zero
-        for color_joint in color_validation_joints:     # iterate through corresponding, unvalidated joints
+        for color_joint in self.color_validation_joints:     # iterate through corresponding, unvalidated joints
             if not val[color_joint]:
                 # flip the current pixel to camera coordinate system
                 x, y = joints_2d[color_joint, 0], joints_2d[color_joint, 1]
                 # generate search pixels around joint
-                for x_search, y_search in helper.generate_search_pixels((x, y), color_joint, search_areas, self.resolution):
+                for x_search, y_search in helper.generate_search_pixels((x, y), color_joint, self.search_areas, self.resolution):
                     color = color_image[y_search, x_search]
-                    if all(np.greater_equal(color_range[1], color)) and all(np.greater_equal(color, color_range[0])):
+                    if all(np.greater_equal(self.color_range[1], color)) and all(np.greater_equal(color, self.color_range[0])):
                         try:
                             depth = depth_frame.get_distance(x_search, y_search)    # get the depth at this pixel
                             if depth > 0:
@@ -562,7 +493,7 @@ class RGBDto3DPose:
                     # flip the current pixel to camera coordinate system
                     x, y = joints_2d[i, 0], joints_2d[i, 1]
                     # generate search pixels around joint
-                    for x_search, y_search in helper.generate_search_pixels((x, y), i, search_areas, self.resolution):    # for each pixel in search area
+                    for x_search, y_search in helper.generate_search_pixels((x, y), i, self.search_areas, self.resolution):    # for each pixel in search area
                         try:
                             depth = depth_frame.get_distance(x_search, y_search)    # get the depth at this pixel
                             if depth <= 0:
@@ -572,7 +503,7 @@ class RGBDto3DPose:
                             val_joints[i] = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x, y), depth=depth)
 
                             # try if any connection validates successfully then break out and continue with the next joint
-                            for connected_joint in connections_dict[i]:
+                            for connected_joint in self.connections_dict[i]:
                                 j1, j2 = sorted((i, connected_joint))
                                 if validate_joint((j1, j2)):
                                     val[j1] = val[j2] = True  # to not correct those joints again
@@ -621,27 +552,8 @@ class RGBDto3DPose:
         return val_joints
 
 
-def stream(savefile_prefix: str | None = None, save_joints: bool = False, save_bag: bool = False, duration: float = float("inf"),
-           resolution: tuple[int, int] = (480, 270), fps: int = 30, flip: int = 1, countdown: int = 0, translation=(0, 0, 0), rotation=(0, 0, 0),
-           show_rgb: bool = True, show_depth: bool = True, show_joints: bool = True, show_color_mask: bool = False,
-           simulate_limbs: bool = True, simulate_joints: bool = True, simulate_joint_connections: bool = True):
-    cl = RGBDto3DPose(playback=False, duration=duration, playback_file=None,
-                      resolution=resolution, fps=fps, flip=flip, countdown=countdown, translation=translation, rotation=rotation,
-                      savefile_prefix=savefile_prefix, save_joints=save_joints, save_bag=save_bag,
-                      show_rgb=show_rgb, show_depth=show_depth, show_joints=show_joints, show_color_mask=show_color_mask,
-                      simulate_limbs=simulate_limbs, simulate_joints=simulate_joints, simulate_joint_connections=simulate_joint_connections)
-    cl.run()
-
-
-def playback(playback_file: str, savefile_prefix: str | None = None, save_joints: bool = False, save_bag: bool = False, duration: float = -1,
-             resolution: tuple[int, int] = (480, 270), fps: int = 30, flip: int = 1, translation=(0, 0, 0), rotation=(0, 0, 0),
-             show_rgb: bool = True, show_depth: bool = True, show_joints: bool = True, show_color_mask: bool = False,
-             simulate_limbs: bool = True, simulate_joints: bool = True, simulate_joint_connections: bool = True):
-    cl = RGBDto3DPose(playback=True, duration=duration, playback_file=playback_file,
-                      resolution=resolution, fps=fps, flip=flip, countdown=0, translation=translation, rotation=rotation,
-                      savefile_prefix=savefile_prefix, save_joints=save_joints, save_bag=save_bag,
-                      show_rgb=show_rgb, show_depth=show_depth, show_joints=show_joints, show_color_mask=show_color_mask,
-                      simulate_limbs=simulate_limbs, simulate_joints=simulate_joints, simulate_joint_connections=simulate_joint_connections)
+def run():
+    cl = RGBDto3DPose(**config["Main"])
     cl.run()
 
 
@@ -649,16 +561,4 @@ if __name__ == '__main__':
     cam_translation = (0, 1.5, 0)  # from (x,y,z) = (0,0,0) in m
     cam_rotation = (0, 0, 0)  # from pointing parallel to z-axis, (x-rotation [up/down], y-rotation [left/right], z-rotation/tilt [anti-clockwise, clockwise]), in radians
 
-    # playback("test.bag", save_joints=True, savefile_prefix="vid", simulate_limbs = False, simulate_joints = False, simulate_joint_connections = False)
-    # playback("test.bag", translation=cam_translation, simulate_joint_connections=False, simulate_joints=False)
-
-    # stream(countdown=3, translation=cam_translation, rotate=2, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False, simulate_joint_connections=False, simulate_limbs=True)
-
-    stream(translation=cam_translation, rotation=cam_rotation, flip=0, show_rgb=True, show_depth=True, show_joints=True, simulate_joints=False,
-           simulate_joint_connections=False, simulate_limbs=True, show_color_mask=True)
-
-    #stream(savefile_prefix="test_val", save_joints = False, save_bag = True, flip = 0, countdown = 2, translation=cam_translation,
-     #      show_rgb = True, show_depth = True, show_joints = True,
-      #     simulate_limbs = False, simulate_joints = False, simulate_joint_connections = False)
-
-    # playback("test_val.bag", flip=0, translation=cam_translation, simulate_joint_connections=False, simulate_joints=False)
+    run()

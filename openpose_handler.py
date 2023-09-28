@@ -1,23 +1,21 @@
-import random
 import sys
 import cv2
 import os
 from sys import platform
-import argparse
-import time
 import numpy as np
 
-from helper import draw_pixel_grid
+from config import config
 
+op_config = config["OpenPoseHandler"]
 # Import Openpose (Windows/Ubuntu/OSX)
 dir_path = os.path.dirname(os.path.realpath(__file__))
-openpose_python_path_ubuntu = "/home/pk/programs/openpose/build/python"
-model_folder_ubuntu = "/home/pk/programs/openpose/models/"
+openpose_python_path_ubuntu = op_config["openpose_python_path_ubuntu"]
+model_folder_ubuntu = op_config["model_folder_ubuntu"]
 
-openpose_python_path_win = "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/build2/python/openpose/Release/"
-openpose_release_path_win = "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/build2/x64/Release"
-openpose_bin_path_win = "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/build2/bin"
-model_folder_win = "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/models"
+openpose_python_path_win = op_config["openpose_python_path_win"]
+openpose_release_path_win = op_config["openpose_release_path_win"]
+openpose_bin_path_win = op_config["openpose_bin_path_win"]
+model_folder_win = op_config["model_folder_win"]
 
 try:
     # Windows Import
@@ -47,10 +45,6 @@ class OpenPoseHandler:
     poseModel = op.PoseModel.BODY_25
     mapping = op.getPoseBodyPartMapping(poseModel)
     reverse_mapping = {v: k for k, v in op.getPoseBodyPartMapping(poseModel).items()}
-    #pairs = [(op.getPosePartPairs(op.PoseModel.BODY_25)[i], op.getPosePartPairs(op.PoseModel.BODY_25)[i + 1]) for i in range(0, len(op.getPosePartPairs(op.PoseModel.BODY_25)), 2)]
-    #pairs_hr = [f"{op.getPoseBodyPartMapping(op.PoseModel.BODY_25)[a]}-{op.getPoseBodyPartMapping(op.PoseModel.BODY_25)[b]}" for a, b in pairs]
-    pairs = [(1, 8), (1, 2), (1, 5), (2, 3), (3, 4), (5, 6), (6, 7), (8, 9), (9, 10), (10, 11), (8, 12), (12, 13), (13, 14), (1, 0), (0, 15), (15, 17), (0, 16), (16, 18), (14, 19), (19, 20), (14, 21), (11, 22), (22, 23), (11, 24)]
-
 
     def __init__(self):
         # Custom Params (refer to include/openpose/flags.hpp for more parameters)
@@ -85,9 +79,3 @@ class OpenPoseHandler:
             return datum.poseKeypoints[0, :, :2], datum.poseKeypoints[0, :, 2], datum.cvOutputData
         else:
             return np.zeros([25, 2]), np.zeros([25, 1]), datum.cvOutputData
-
-
-if __name__ == '__main__':
-    print(OpenPoseHandler.mapping)
-    print(OpenPoseHandler.pairs)
-    print(OpenPoseHandler.pairs_hr)

@@ -12,9 +12,10 @@ import pybullet_data
 
 import multiprocessing as mp
 
+from config import config
 
 # from openpose_handler import OpenPoseHandler
-
+"""
 pairs = [(1, 8), (1, 2), (1, 5), (2, 3), (3, 4), (5, 6), (6, 7), (8, 9), (9, 10), (10, 11), (8, 12), (12, 13), (13, 14), (1, 0), (0, 15),
          (15, 17), (0, 16), (16, 18), (14, 19), (19, 20), (14, 21), (11, 22), (22, 23), (11, 24)]
 
@@ -41,14 +42,19 @@ lengths = {
     "shoulder": 0.22,
     "hip": 0.13,
     "head": 0.8
-}
+}"""
 
 default_direction = np.array([0, 0, 1])
+
+def is_joint_valid(joint: np.ndarray):
+    return joint[1] != 0
+
 
 class Simulator:
 
     # TODO: Collision shapes: Dont forget to activate/deactivate
     def __init__(self, simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool,
+                 joint_map: dict, limbs: list[tuple[str, str]], radii: dict, lengths: dict,
                  joints_sync=None, ready_sync=None, done_sync=None, playback_file: str = None):
         self.joints_sync = joints_sync
         self.done_sync = done_sync
@@ -56,8 +62,18 @@ class Simulator:
         self.simulate_limbs = simulate_limbs
         self.simulate_joints = simulate_joints
         self.simulate_joint_connections = simulate_joint_connections
-
-        self.limbs = {}
+        self.limb_list = []
+        for i in limbs:
+            l = []
+            for j in i:
+                l.append(joint_map[j])
+            self.limb_list.append(tuple(l))
+        self.joint_list = []
+        for i in self.limb_list:
+            for j in i:
+                self.joint_list.append(j)
+        self.joint_list = set(self.joint_list)
+        self.debug_lines = []
 
         # Connect to the PyBullet physics server
         physicsClient = p.connect(p.GUI)
@@ -67,95 +83,32 @@ class Simulator:
                                      cameraTargetPosition=[0, 0, 0])
 
         if simulate_limbs:
+            self.limbs_pb = {}
             # pregenerate geometry
+            for limb in limbs:
+                if len(limb) == 1:  # if this limb has only one point, like head or hand, it's simulated with a sphere
+                    visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=radii[limb[0]], rgbaColor=[0, 0, 0, 0])
+                    body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
+                    self.limbs_pb[(joint_map[limb[0]],)] = body_id
+                elif len(limb) == 2: # if this limb has two points, like head or hand, it's simulated with a cylinder
+                    limb_str = f"{limb[0]}-{limb[1]}"
+                    visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii[limb_str], length=lengths[limb_str], rgbaColor=[0, 0, 0, 0])
+                    body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
+                    if joint_map[limb[0]] >= joint_map[limb[1]]:
+                        raise ValueError(f"limbs: for all tuples (a,b): joint_map[a] < joint_map[b], but joint_map[{limb[0]}] >= joint_map[{limb[1]}]")
+                    self.limbs_pb[(joint_map[limb[0]], joint_map[limb[1]])] = body_id
+                else:
+                    raise ValueError(f"limbs: no connections between more then two joints: {limb}")
 
-            # head
-            visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=radii["head"])
-            body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
-            self.limbs["head"] = body_id
-
-            # neck
-            visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii["neck"], length=lengths["neck"])
-            body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
-            self.limbs["neck"] = body_id
-
-            # torso
-            visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii["torso"], length=lengths["torso"])
-            body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
-            self.limbs["torso"] = body_id
-
-            # armL
-            visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii["arm"], length=lengths["arm"])
-            body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
-            self.limbs["armL"] = body_id
-
-            # armR
-            visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii["arm"], length=lengths["arm"])
-            body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
-            self.limbs["armR"] = body_id
-
-            # forearmL
-            visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii["forearm"], length=lengths["forearm"])
-            body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
-            self.limbs["forearmL"] = body_id
-
-            # forearmR
-            visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii["forearm"], length=lengths["forearm"])
-            body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
-            self.limbs["forearmR"] = body_id
-
-            # handL
-            visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=radii["hand"])
-            body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
-            self.limbs["handL"] = body_id
-
-            # handR
-            visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=radii["hand"])
-            body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
-            self.limbs["handR"] = body_id
-
-            # thighL
-            visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii["thigh"], length=lengths["thigh"])
-            body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
-            self.limbs["thighL"] = body_id
-
-            # thighR
-            visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii["thigh"], length=lengths["thigh"])
-            body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
-            self.limbs["thighR"] = body_id
-
-            # legL
-            visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii["leg"], length=lengths["leg"])
-            body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
-            self.limbs["legL"] = body_id
-
-            # legR
-            visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii["leg"], length=lengths["leg"])
-            body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
-            self.limbs["legR"] = body_id
-
-            # footL
-            visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii["foot"], length=lengths["foot"])
-            body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
-            self.limbs["footL"] = body_id
-
-            # footR
-            visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii["foot"], length=lengths["foot"])
-            body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
-            self.limbs["footR"] = body_id
-
-            for name in self.limbs.keys():
-                p.changeVisualShape(self.limbs[name], -1, rgbaColor=[0, 0, 0, 0])
-
-            self.limbs_directions = {key: [0, 0, 1] for key in self.limbs}
+            """for name in self.limbs.keys():
+                p.changeVisualShape(self.limbs[name], -1, rgbaColor=[0, 0, 0, 0])"""
 
         if self.simulate_joints:
-            self.points = {}
-            for i in range(25):
+            self.joints_pb = {}
+            for j in self.joint_list:
                 sphere_id = p.createVisualShape(shapeType=p.GEOM_SPHERE, radius=0.05, rgbaColor=[0, 0, 0, 0])
                 body_id = p.createMultiBody(baseMass=0, baseVisualShapeIndex=sphere_id, baseCollisionShapeIndex=-1, basePosition=[0, 0, 0])
-                self.points[i] = body_id
-            self.connections = []
+                self.joints_pb[j] = body_id
 
         if ready_sync is not None:
             ready_sync.set()
@@ -213,147 +166,92 @@ class Simulator:
         p.disconnect()
 
     def process_frame(self, joints: np.ndarray):
+        joints = joints[:, [0, 2, 1]]   # adjust axis to fit pybullet axis
         if self.simulate_joints:
             self.move_points(joints)
         if self.simulate_joint_connections:
             self.visualize_connections(joints)
         if self.simulate_limbs:
-            self.move_limbs(convert_openpose_coords(joints))
+            self.move_limbs(joints)
         p.stepSimulation()
 
-    def move_limbs(self, joints: dict[str, list[np.ndarray]]):
-        for missing in self.limbs.keys() - joints.keys():
-            p.changeVisualShape(self.limbs[missing], -1, rgbaColor=[0, 0, 0, 0])
+    def move_limbs(self, joints: np.ndarray):
+        for limb in self.limb_list:
+            limb_pb = self.limbs_pb[limb]
+            if all([is_joint_valid(joints[l]) for l in limb]):  # if all limb joints are valid
+                if len(limb) == 1:  # if it's a sphere
+                    p.resetBasePositionAndOrientation(limb_pb, joints[limb[0]], p.getQuaternionFromEuler([0, 0, 0]))
+                else:   # it's a cylinder
+                    coord1, coord2 = joints[limb[0]], joints[limb[1]]
 
-        for limb, joint in joints.items():
-            limb_id = self.limbs[limb]
+                    # Calculate midpoint
+                    midpoint = (coord1 + coord2) / 2
 
-            if limb in ["head", "handL", "handR"]:
-                p.resetBasePositionAndOrientation(limb_id, joint[0], p.getQuaternionFromEuler([0, 0, 0]))
-            else:
-                coord1, coord2 = joint
+                    direction = coord2 - coord1
 
-                # Calculate midpoint
-                midpoint = (coord1 + coord2) / 2
+                    # Calculate the orientation quaternion
+                    rotation_axis = np.cross(default_direction, direction)
+                    rotation_angle = np.arccos(np.dot(default_direction, direction) / (np.linalg.norm(default_direction) * np.linalg.norm(direction)))
+                    orientation = p.getQuaternionFromAxisAngle(rotation_axis, rotation_angle)
 
-                direction = coord2 - coord1
+                    # Update existing cylinder's properties
+                    p.resetBasePositionAndOrientation(limb_pb, midpoint, orientation)
 
-                # Calculate the orientation quaternion
-                rotation_axis = np.cross(default_direction, direction)
-                rotation_angle = np.arccos(np.dot(default_direction, direction) / (np.linalg.norm(default_direction) * np.linalg.norm(direction)))
-                """print(f"Input: {np.dot(default_direction, direction) / (np.linalg.norm(default_direction) * np.linalg.norm(direction))}")
-                print(f"Angle: {rotation_angle}")"""
-                orientation = p.getQuaternionFromAxisAngle(rotation_axis, rotation_angle)
-
-                # Update existing cylinder's properties
-                p.resetBasePositionAndOrientation(limb_id, midpoint, orientation)
-
-            p.changeVisualShape(limb_id, -1, rgbaColor=[0, 0, 0.9, 0.5])
+                p.changeVisualShape(limb_pb, -1, rgbaColor=[0, 0, 0.9, 0.5])
+            else:   # one limb joint is invalid
+                p.changeVisualShape(limb_pb, -1, rgbaColor=[0, 0, 0, 0])
 
     def move_points(self, joints):
-        for point_id, point in enumerate(joints):
-            id = self.points[point_id]
-            if not point[2] == 0:
-                x, z, y = point
-                p.resetBasePositionAndOrientation(id, [x, y, z], p.getQuaternionFromEuler([0, 0, 0]))
-                p.changeVisualShape(id, -1, rgbaColor=[0.9, 0, 0, 1.0])
+        for j in self.joint_list:
+            joint_pb = self.joints_pb[j]
+            if is_joint_valid(joints[j]):
+                p.resetBasePositionAndOrientation(joint_pb, joints[j], p.getQuaternionFromEuler([0, 0, 0]))
+                p.changeVisualShape(joint_pb, -1, rgbaColor=[0.9, 0, 0, 1.0])
             else:
-                p.changeVisualShape(id, -1, rgbaColor=(0, 0, 0, 0))
+                p.changeVisualShape(joint_pb, -1, rgbaColor=(0, 0, 0, 0))
 
     def visualize_connections(self, joints):
-        for i in self.connections:
-            p.removeUserDebugItem(self.connections[i])
+        for i in self.debug_lines:
+            p.removeUserDebugItem(self.debug_lines[i])
 
-        for i, connection in enumerate(pairs):
-            point_id1, point_id2 = connection
-            (x1, z1, y1), (x2, z2, y2) = joints[point_id1], joints[point_id2]
+        for limb in self.limb_list:
 
-            # Retrieve the corresponding sphere IDs
-            if y1 != 0 and y2 != 0:
+            if len(limb) == 2 and all([is_joint_valid(joints[l]) for l in limb]):   # iterate over valid connections
                 # Draw a line between the points
-                self.connections.append(p.addUserDebugLine(lineFromXYZ=(x1, y1, z1), lineToXYZ=(x2, y2, z2), lineColorRGB=[0, 0, 0.9], lineWidth=5))
-
-
-def convert_openpose_coords(coords: np.ndarray) -> dict[str, list[np.ndarray]]:
-        ret = {}
-
-        def add_to_ret(name: str, positions: list[int]):
-            if all([coords[pos, 2] != 0 for pos in positions]):
-                ret[name] = [np.array([coords[pos, 0], coords[pos, 2], coords[pos, 1]]) for pos in positions]
-
-        add_to_ret("head", [0])
-        add_to_ret("neck", [0, 1])
-        add_to_ret("torso", [1, 8])
-        add_to_ret("armR", [2, 3])
-        add_to_ret("armL", [5, 6])
-        add_to_ret("forearmR", [3, 4])
-        add_to_ret("forearmL", [6, 7])
-        add_to_ret("handR", [4])
-        add_to_ret("handL", [7])
-        add_to_ret("thighR", [9, 10])
-        add_to_ret("thighL", [12, 13])
-        add_to_ret("legR", [10, 11])
-        add_to_ret("legL", [13, 14])
-        add_to_ret("footR", [11, 22])
-        add_to_ret("footL", [14, 19])
-
-        return ret
-
-
-def limb_coords_generator(joints: np.ndarray):
-    tuples = [(0,), (0, 1), (1, 8), (2, 3), (5, 6), (3, 4), (6, 7), (4,), (7,), (9, 10), (12, 13), (10, 11), (13, 14), (11, 22), (14, 19)]
-    names = ["head", "neck", "torso", "armR", "armL", "forearmR", "forearmL", "handR", "handL", "thighR", "thighL", "legR", "legL", "footR", "footL"]
-
-    while len(tuples) > 0:
-        yield names.pop(), list(joints.take(tuples.pop(), axis=0))
-
-
-"""def visualize(con, ready):
-    vis = Visualizer()
-    ready.set()
-    
-    start = time.time()
-    c = 0
-
-    while time.time() - start < 10:
-        joints = con.recv()
-        # vis.visualize_points(joints)
-        vis.move_limbs(convert_openpose_coords(joints))
-        p.stepSimulation()
-        c+=1
-    print(f"fps:{c/10}")
-    p.disconnect()"""
-
-
-"""def visualize(joints_sync, ready, simulate_shape: bool, simulate_joints: bool, simulate_joint_connections: bool):
-    vis = Simulator(joints_sync, ready, simulate_shape, simulate_joints, simulate_joint_connections)
-    ready.set()
-
-    start = time.time()
-    c = 0
-
-    while time.time() - start < 10:
-        joints = np.array(joints_sync).reshape([25, 3])
-        vis.move_points(joints)
-        vis.move_limbs(convert_openpose_coords(joints))
-        p.stepSimulation()
-        c+=1
-    print(f"fps:{c/10}")
-    p.disconnect()"""
+                self.debug_lines.append(p.addUserDebugLine(lineFromXYZ=joints[limb[0]], lineToXYZ=joints[limb[1]], lineColorRGB=[0, 0, 0.9], lineWidth=5))
 
 
 def simulate_sync(joints_sync, ready_sync, done_sync, simulate_shape: bool, simulate_joints: bool, simulate_joint_connections: bool):
-    sim = Simulator(simulate_shape, simulate_joints, simulate_joint_connections, joints_sync, ready_sync, done_sync)
+    joint_map = config["Main"]["joint_map"]
+    limbs = config["Simulator"]["limbs"]
+    radii = config["Simulator"]["radii"]
+    lengths = config["Simulator"]["lengths"]
+
+    sim = Simulator(simulate_shape, simulate_joints, simulate_joint_connections,
+                    joint_map, limbs, radii, lengths,
+                    joints_sync, ready_sync, done_sync)
     sim.run_sync()
 
 
 def simulate_playback(simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool, playback_file: str, mode: int):
-    sim = Simulator(simulate_limbs, simulate_joints, simulate_joint_connections, playback_file=playback_file)
+    joint_map = config["Main"]["joint_map"]
+    limbs = config["Simulator"]["limbs"]
+    radii = config["Simulator"]["radii"]
+    lengths = config["Simulator"]["lengths"]
+
+    sim = Simulator(simulate_limbs, simulate_joints, simulate_joint_connections,
+                    joint_map, limbs, radii, lengths, playback_file=playback_file)
     sim.run_playback(mode)
 
 
 def simulate_single(simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool, joints: list[np.ndarray]):
-    sim = Simulator(simulate_limbs, simulate_joints, simulate_joint_connections)
+    joint_map = config["Main"]["joint_map"]
+    limbs = config["Simulator"]["limbs"]
+    radii = config["Simulator"]["radii"]
+    lengths = config["Simulator"]["lengths"]
+
+    sim = Simulator(simulate_limbs, simulate_joints, simulate_joint_connections,
+                    joint_map, limbs, radii, lengths)
 
     print("Press any key to simulate one frame. Press q to terminate")
     frames = deque(joints)

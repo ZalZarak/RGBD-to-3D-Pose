@@ -1,0 +1,212 @@
+Main:
+  playback: false
+  playback_file: "test.bag"
+  duration: -1
+  countdown: -1
+  # saving
+  savefile_prefix: null
+  save_joints: false
+  save_bag: false
+  # show
+  show_rgb: true
+  show_depth: true
+  show_joints: true
+  show_color_mask: true
+  # simulate
+  simulate_limbs: true
+  simulate_joints: false
+  simulate_joint_connections: false
+  # camera
+  resolution: [480, 270]
+  fps: 30
+  flip: 0
+  translation: [0, 0, 0]
+  rotation: [0, 0, 0]
+  # depth_settings
+  visual_preset: "High Density"
+  exposure: 16000
+  gain: 16
+  laser_power: 360
+  depth_units: 0.0005
+  # post_processing
+  decimation_filter: false
+  depth2disparity: true
+  spatial_filter: true
+  temporal_filter: true
+  disparity2depth: true
+  hole_filling_filter: -1
+  # validation
+  joint_map:  # do not change, as defined in OpenPose
+    Nose: 0
+    Neck: 1
+    RShoulder: 2
+    RElbow: 3
+    RWrist: 4
+    LShoulder: 5
+    LElbow: 6
+    LWrist: 7
+    MidHip: 8
+    RHip: 9
+    RKnee: 10
+    RAnkle: 11
+    LHip: 12
+    LKnee: 13
+    LAnkle: 14
+    REye: 15
+    LEye: 16
+    REar: 17
+    LEar: 18
+    LBigToe: 19
+    LSmallToe: 20
+    LHeel: 21
+    RBigToe: 22
+    RSmallToe: 23
+    RHeel: 24
+    Background: 25
+  connections_hr: # for all tuples (a,b): a<b
+    - [ 'Nose', 'Neck' ]
+    - [ 'Nose', 'REye' ]
+    - [ 'Nose', 'LEye' ]
+    - [ 'REye', 'REar' ]
+    - [ 'LEye', 'LEar' ]
+    - [ 'Neck', 'RShoulder' ]
+    - [ 'Neck', 'LShoulder' ]
+    - [ 'RShoulder', 'RElbow' ]
+    - [ 'LShoulder', 'LElbow' ]
+    - [ 'RElbow', 'RWrist' ]
+    - [ 'LElbow', 'LWrist' ]
+    - [ 'Neck', 'MidHip' ]
+    - [ 'MidHip', 'RHip' ]
+    - [ 'MidHip', 'LHip' ]
+    - [ 'RHip', 'RKnee' ]
+    - [ 'LHip', 'LKnee' ]
+    - [ 'RKnee', 'RAnkle' ]
+    - [ 'LKnee', 'LAnkle' ]
+    - [ 'RAnkle', 'RBigToe' ]
+    - [ 'LAnkle', 'LBigToe' ]
+  color_validation_joints_hr: [RWrist, LWrist]
+  color_range: [ [0, 135, 0], [255, 255, 75] ]
+  lengths_hr:   # must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
+    Nose-Neck: [0.125, 0.275]
+    Nose-LEye: [0.03, 0.06]
+    Nose-REye: [0.03, 0.06]
+    LEye-LEar: [0.07, 0.12]  # with this deviation down it will invalidate front view of face but make it robuster to occlusion. If front, eye detection should work
+    REye-REar: [0.07, 0.12]
+    Neck-LShoulder: [0.15, 0.21]
+    Neck-RShoulder: [0.15, 0.21]
+    LShoulder-LElbow: [0.27, 0.36]
+    RShoulder-RElbow: [0.27, 0.36]
+    LElbow-LWrist: [0.26, 0.32]
+    RElbow-RWrist: [0.26, 0.32]
+    Neck-MidHip: [0.37, 0.595]
+    MidHip-LHip: [0.1, 0.13]
+    MidHip-RHip: [0.1, 0.13]
+    LHip-LKnee: [0.38, 0.49]
+    RHip-RKnee: [0.38, 0.49]
+    LKnee-LAnkle: [0.44, 0.51]
+    RKnee-RAnkle: [0.44, 0.51]
+    LAnkle-LBigToe: [0.15, 0.21]
+    RAnkle-RBigToe: [0.15, 0.21]
+  depth_deviations_hr:  # must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
+    Nose-Neck: 0.2
+    Nose-LEye: 0.04
+    Nose-REye: 0.04
+    LEye-LEar: 0.07  # with this deviation down it will invalidate front view of face but make it robuster to occlusion. If front, eye detection should work
+    REye-REar: 0.07
+    Neck-LShoulder: 0.17
+    Neck-RShoulder: 0.17
+    LShoulder-LElbow: -1
+    RShoulder-RElbow: -1
+    LElbow-LWrist: -1
+    RElbow-RWrist: -1
+    Neck-MidHip: 0.2
+    MidHip-LHip: 0.09
+    MidHip-RHip: 0.09
+    LHip-LKnee: -1
+    RHip-RKnee: -1
+    LKnee-LAnkle: -1
+    RKnee-RAnkle: -1
+    LAnkle-LBigToe: -1
+    RAnkle-RBigToe: -1
+  search_areas_hr:  # [deviation, skip] in pixels
+    Nose: [8, 3]
+    Neck: [12, 3]
+    RShoulder: [9, 2]
+    RElbow: [12, 2]
+    RWrist: [12, 2]
+    LShoulder: [9, 2]
+    LElbow: [12, 2]
+    LWrist: [12, 2]
+    MidHip: [15, 4]
+    RHip: [6, 5]
+    RKnee: [5, 4]
+    RAnkle: [4, 3]
+    LHip: [6, 5]
+    LKnee: [5, 4]
+    LAnkle: [4, 3]
+    REye: [0, 0]
+    LEye: [0, 0]
+    REar: [0, 0]
+    LEar: [0, 0]
+    LBigToe: [0, 0]
+    LSmallToe: [0, 0]
+    LHeel: [0, 0]
+    RBigToe: [0, 0]
+    RSmallToe: [0, 0]
+    RHeel: [0, 0]
+    Background: [0, 0]
+OpenPoseHandler:
+  # Ubuntu
+  openpose_python_path_ubuntu: "/home/pk/programs/openpose/build/python"
+  model_folder_ubuntu: "/home/pk/programs/openpose/models/"
+  # Window
+  openpose_python_path_win: "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/build2/python/openpose/Release/"
+  openpose_release_path_win: "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/build2/x64/Release"
+  openpose_bin_path_win: "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/build2/bin"
+  model_folder_win: "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/models"
+Simulator:
+  limbs: # must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
+    - [ 'Nose' ]
+    - [ 'Nose', 'Neck' ]
+    - [ 'Neck', 'MidHip' ]
+    - [ 'RShoulder', 'RElbow' ]
+    - [ 'LShoulder', 'LElbow' ]
+    - [ 'RElbow', 'RWrist' ]
+    - [ 'LElbow', 'LWrist' ]
+    - [ 'RWrist' ]
+    - [ 'LWrist' ]
+    - [ 'RHip', 'RKnee' ]
+    - [ 'LHip', 'LKnee' ]
+    - [ 'RKnee', 'RAnkle' ]
+    - [ 'LKnee', 'LAnkle' ]
+    - [ 'RAnkle', 'RBigToe' ]
+    - [ 'LAnkle', 'LBigToe' ]
+  radii:
+    Nose: 0.11
+    Nose-Neck: 0.06
+    Neck-MidHip: 0.2
+    RShoulder-RElbow: 0.05
+    LShoulder-LElbow: 0.05
+    RElbow-RWrist: 0.04
+    LElbow-LWrist: 0.04
+    RWrist: 0.2
+    LWrist: 0.2
+    RHip-RKnee: 0.07
+    LHip-LKnee: 0.07
+    RKnee-RAnkle: 0.06
+    LKnee-LAnkle: 0.06
+    RAnkle-RBigToe: 0.03
+    LAnkle-LBigToe: 0.03
+  lengths:
+    Nose-Neck: 0.2
+    Neck-MidHip: 0.6
+    RShoulder-RElbow: 0.35
+    LShoulder-LElbow: 0.35
+    RElbow-RWrist: 0.3
+    LElbow-LWrist: 0.3
+    RHip-RKnee: 0.5
+    LHip-LKnee: 0.5
+    RKnee-RAnkle: 0.45
+    LKnee-LAnkle: 0.45
+    RAnkle-RBigToe: 0.15
+    LAnkle-LBigToe: 0.15

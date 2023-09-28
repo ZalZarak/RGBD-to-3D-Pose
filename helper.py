@@ -3,8 +3,6 @@ import numpy as np
 from cfonts import render as render_text
 import time
 
-from simulator import pairs
-
 
 def print_countdown(seconds):
     def print_in_big_font(text):
@@ -38,7 +36,7 @@ def draw_pixel_grid(image):
     return grid_image
 
 
-def show(name: str, frame, joints: np.ndarray = None):
+def show(name: str, frame, joints: np.ndarray = None, pairs: list[tuple[int, int]] = None):
     if joints is not None:
         frame = frame.copy()    # copy because cv2 cannot handle views of ndarrays e.g. if they were rotated etc.
         joints = joints.astype(int)
@@ -80,3 +78,8 @@ def generate_search_pixels(pixel: tuple[int, int], joint_id: int, base_search_ar
     search = map(lambda a: (a[0] + pixel[0], a[1] + pixel[1]), base_search_area[joint_id])
     search = filter(lambda a: 0 <= a[0] < resolution[0] and 0 <= a[1] < resolution[1], search)
     return search
+
+
+class NoFilter:
+    def process(self, a):
+        return a
