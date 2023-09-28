@@ -11,7 +11,7 @@ import pyrealsense2 as rs
 
 import helper
 import main
-from config import config, overwrite
+from config import config
 
 color_ranges = {
     "upper blue": config["Main"]["color_range"][1][0],
