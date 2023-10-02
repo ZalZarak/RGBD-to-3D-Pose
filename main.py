@@ -169,7 +169,7 @@ class RGBDto3DPose:
         self.simulate_joint_connections = simulate_joint_connections
 
         self.start_simulator = start_simulator          # if True and simulate, main will start Simulator, if false and simulate, Simulator will start main
-        self.done_sync = done_sync                      # to communicate with simulator if one process ended
+        self.done_sync = done_sync if done_sync is not None else mp.Value('b', False) # to communicate with simulator if one process ended
         self.ready_sync = ready_sync                    # to communicate when process is done initializing
         self.joints_sync = joints_sync                  # to forward joints to simulator
 
@@ -267,7 +267,8 @@ class RGBDto3DPose:
                 self.process_frame()
                 key = cv2.waitKey(1)
         finally:
-            self.done_sync.value = True     # tell Simulator to stop
+            if self.simulate:
+                self.done_sync.value = True     # tell Simulator to stop
             cv2.destroyAllWindows()
             self.pipeline.stop()
             if self.save_joints:    # save joints
