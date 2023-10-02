@@ -18,7 +18,7 @@ import helper
 from config import config
 from old.main import visualize_points
 from openpose_handler import OpenPoseHandler
-from simulator import simulate_sync
+from simulator import simulate_sync_as_subprocess
 
 import multiprocessing as mp
 
@@ -37,7 +37,8 @@ class RGBDto3DPose:
                  temporal_filter: bool, disparity2depth: bool, hole_filling_filter: int,
                  joint_map: dict, connections_hr: list[tuple[str, str]], color_validation_joints_hr: list[str],
                  color_range: tuple[tuple[int, int, int], tuple[int, int, int]], lengths_hr: dict, depth_deviations_hr: dict,
-                 search_areas_hr: dict
+                 search_areas_hr: dict,
+                 start_simulator=True, joints_sync=None, ready_sync=None, done_sync=None
                  ):
         """
         Main class to handle entire pipeline. Receives streams from Intel RealSense Depth Camera, pushes to OpenPose for Joint Positions,
@@ -167,8 +168,10 @@ class RGBDto3DPose:
         self.simulate_joints = simulate_joints
         self.simulate_joint_connections = simulate_joint_connections
 
-        self.done_sync = mp.Value('b', False)    # to communicate with simulator if one process ended
-        self.joints_sync = None                  # to forward joints to simulator
+        self.start_simulator = start_simulator          # if True and simulate, main will start Simulator, if false and simulate, Simulator will start main
+        self.done_sync = done_sync                      # to communicate with simulator if one process ended
+        self.ready_sync = ready_sync                    # to communicate when process is done initializing
+        self.joints_sync = joints_sync                  # to forward joints to simulator
 
         self.joints_save = []   # list to save time and 3D joints
         self.start_time = -1
@@ -280,14 +283,15 @@ class RGBDto3DPose:
         """
 
         # start Simulator
-        if self.simulate:
-            ready_sync = mp.Event()
+        if self.simulate and self.start_simulator:
+            self.done_sync = mp.Value('b', False)
+            self.ready_sync = mp.Event()
             self.joints_sync = mp.Array('f', np.zeros([25 * 3]))
-            simulator_process = mp.Process(target=simulate_sync,
-                                           args=(self.joints_sync, ready_sync, self.done_sync, self.simulate_limbs, self.simulate_joints,
+            simulator_process = mp.Process(target=simulate_sync_as_subprocess,
+                                           args=(self.joints_sync, self.ready_sync, self.done_sync, self.simulate_limbs, self.simulate_joints,
                                                  self.simulate_joint_connections))
             simulator_process.start()
-            ready_sync.wait()   # wait until Simulator is ready
+            self.ready_sync.wait()   # wait until Simulator is ready
 
         # Initialize OpenPose Handler
         if self.use_openpose:
@@ -333,6 +337,9 @@ class RGBDto3DPose:
             depth_sensor.set_option(rs.option.depth_units, self.depth_units)
 
         self.pipeline = pipeline
+
+        if self.simulate and not self.start_simulator:
+            self.ready_sync.set()
 
     def process_frame(self):
         """
@@ -554,6 +561,21 @@ class RGBDto3DPose:
 
 def run():
     cl = RGBDto3DPose(**config["Main"])
+    cl.run()
+
+
+def run_as_subprocess(simulate_limbs, simulate_joints, simulate_joint_connections, done_sync, ready_sync, joints_sync):
+    config_RGBDto3DPose = config["Main"]
+    config_RGBDto3DPose["playback"] = False
+    config_RGBDto3DPose["simulate_limbs"] = simulate_limbs
+    config_RGBDto3DPose["simulate_joints"] = simulate_joints
+    config_RGBDto3DPose["simulate_joint_connections"] = simulate_joint_connections
+    config_RGBDto3DPose["start_simulator"] = False
+    config_RGBDto3DPose["joints_sync"] = joints_sync
+    config_RGBDto3DPose["ready_sync"] = ready_sync
+    config_RGBDto3DPose["done_sync"] = done_sync
+
+    cl = RGBDto3DPose(**config_RGBDto3DPose)
     cl.run()
 
 

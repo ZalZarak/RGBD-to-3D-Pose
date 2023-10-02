@@ -29,9 +29,11 @@ class Simulator:
     # TODO: Collision shapes: Dont forget to activate/deactivate
     def __init__(self, simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool,
                  joint_map: dict, limbs: list[tuple[str, str]], radii: dict, lengths: dict,
-                 joints_sync=None, ready_sync=None, done_sync=None, playback_file: str = None):
+                 joints_sync=None, ready_sync=None, done_sync=None, playback_file: str = None,
+                 start_RGBDto3DPose=False, config_RGBDto3DPose=None):
         self.joints_sync = joints_sync
         self.done_sync = done_sync
+        self.ready_sync = ready_sync
         self.playback_file = playback_file
         self.simulate_limbs = simulate_limbs
         self.simulate_joints = simulate_joints
@@ -48,6 +50,17 @@ class Simulator:
                 self.joint_list.append(j)
         self.joint_list = set(self.joint_list)
         self.debug_lines = []
+
+        # start main
+        if start_RGBDto3DPose:
+            self.done_sync = mp.Value('b', False)
+            self.ready_sync = mp.Event()
+            self.joints_sync = mp.Array('f', np.zeros([25 * 3]))
+
+            from main import run_as_subprocess
+            cl_process = mp.Process(target=run_as_subprocess,
+                                    args=(simulate_limbs, simulate_joints, simulate_joint_connections, self.done_sync, self.ready_sync, self.joints_sync))
+            cl_process.start()
 
         # Connect to the PyBullet physics server
         physicsClient = p.connect(p.GUI)
@@ -81,21 +94,27 @@ class Simulator:
                 body_id = p.createMultiBody(baseMass=0, baseVisualShapeIndex=sphere_id, baseCollisionShapeIndex=-1, basePosition=[0, 0, 0])
                 self.joints_pb[j] = body_id
 
-        if ready_sync is not None:
-            ready_sync.set()
-
         if playback_file is not None and playback_file != "":
             with open(self.playback_file, 'rb') as file:
                 self.frames: [(float, np.ndarray)] = list(pickle.load(file))
 
+        if start_RGBDto3DPose:
+            self.ready_sync.wait()
+        elif playback_file is None:
+            self.ready_sync.set()
+
+
     def run_sync(self):
         try:
             while not self.done_sync.value:
-                joints = np.array(self.joints_sync).reshape([25, 3])
-                self.step(joints)
+                self.process_frame_sync()
             p.disconnect()
         finally:
             self.done_sync.value = True
+
+    def process_frame_sync(self):
+        joints = np.array(self.joints_sync).reshape([25, 3])
+        self.step(joints)
 
     def run_playback(self, mode: int):
         """
@@ -203,7 +222,19 @@ class Simulator:
                 self.debug_lines.append(p.addUserDebugLine(lineFromXYZ=joints[limb[0]], lineToXYZ=joints[limb[1]], lineColorRGB=[0, 0, 0.9], lineWidth=5))
 
 
-def simulate_sync(joints_sync, ready_sync, done_sync, simulate_shape: bool, simulate_joints: bool, simulate_joint_connections: bool):
+def simulate_sync(simulate_shape: bool = True, simulate_joints: bool = False, simulate_joint_connections: bool = False):
+    joint_map = config["Main"]["joint_map"]
+    limbs = config["Simulator"]["limbs"]
+    radii = config["Simulator"]["radii"]
+    lengths = config["Simulator"]["lengths"]
+    config_RGBDto3DPose = config["Main"]
+
+    sim = Simulator(simulate_shape, simulate_joints, simulate_joint_connections,
+                    joint_map, limbs, radii, lengths, start_RGBDto3DPose=True, config_RGBDto3DPose=config_RGBDto3DPose)
+    sim.run_sync()
+
+
+def simulate_sync_as_subprocess(joints_sync, ready_sync, done_sync, simulate_shape: bool, simulate_joints: bool, simulate_joint_connections: bool):
     joint_map = config["Main"]["joint_map"]
     limbs = config["Simulator"]["limbs"]
     radii = config["Simulator"]["radii"]
@@ -249,89 +280,6 @@ def simulate_single(simulate_limbs: bool, simulate_joints: bool, simulate_joint_
 
 
 if __name__ == '__main__':
-    point_list1 = np.array([
-        [0.00, 1.90, 1.00],  # Nose
-        [0.00, 1.80, 1.00],  # Neck
-        [-0.10, 1.80, 1.00],  # RightShoulder
-        [-0.20, 1.30, 1.00],  # RightElbow
-        [-0.30, 0.90, 1.00],  # RightWrist
-        [0.10, 1.80, 1.00],  # LeftShoulder
-        [0.20, 1.30, 1.00],  # LeftElbow
-        [0.30, 0.90, 1.00],  # LeftWrist
-        [0.00, 1.20, 1.00],  # MidHip
-        [-0.10, 1.20, 1.00],  # RightHip
-        [-0.10, 0.65, 1.00],  # RightKnee
-        [-0.10, -0.01, 1.00],  # RightAnkle
-        [0.10, 1.20, 1.00],  # LeftHip
-        [0.10, 0.65, 1.00],  # LeftKnee
-        [0.10, -0.01, 1.00],  # LeftAnkle
-        [-0.02, 1.91, 1.00],  # RightEye
-        [0.02, 1.91, 1.00],  # LeftEye
-        [-0.04, 1.89, 1.00],  # RightEar
-        [0.04, 1.89, 1.00],  # LeftEar
-        [0.12, -0.01, 1.01],  # LeftBigToe
-        [0.14, -0.01, 1.01],  # LeftSmallToe
-        [0.11, -0.03, .99],  # LeftHeel
-        [-0.12, - .01, 1.01],  # RightBigToe
-        [- .14, - .01, 1.01],  # RightSmallToe
-        [- .11, - .03, .99],  # RightHeel
-    ])
-
-    point_list2 = np.array([
-        [0.00, 1.90, 1.00],  # Nose
-        [0.00, 1.80, 1.00],  # Neck
-        [-0.10, 1.80, 1.00],  # RightShoulder
-        [-0.20, 1.30, 1.00],  # RightElbow
-        [-0.30, 0.90, 1.00],  # RightWrist
-        [0.10, 1.80, 1.00],  # LeftShoulder
-        [0.20, 1.30, 1.00],  # LeftElbow
-        [0.30, 0.90, 0.50],  # LeftWrist
-        [0.00, 1.20, 1.00],  # MidHip
-        [-0.10, 1.20, 1.00],  # RightHip
-        [-0.10, 0.65, 1.00],  # RightKnee
-        [-0.10, -0.01, 1.00],  # RightAnkle
-        [0.10, 1.20, 1.00],  # LeftHip
-        [0.10, 0.65, 1.00],  # LeftKnee
-        [0.10, -0.01, 1.00],  # LeftAnkle
-        [-0.02, 1.91, 1.00],  # RightEye
-        [0.02, 1.91, 1.00],  # LeftEye
-        [-0.04, 1.89, 1.00],  # RightEar
-        [0.04, 1.89, 1.00],  # LeftEar
-        [0.12, -0.01, 1.01],  # LeftBigToe
-        [0.14, -0.01, 1.01],  # LeftSmallToe
-        [0.11, -0.03, .99],  # LeftHeel
-        [-0.12, - .01, 1.01],  # RightBigToe
-        [- .14, - .01, 1.01],  # RightSmallToe
-        [- .11, - .03, .99],  # RightHeel
-    ])
-
-    point_list3 = np.array([
-        [0.00, 1.90, 1.00],  # Nose
-        [0.00, 1.80, 1.00],  # Neck
-        [-0.10, 1.80, 1.00],  # RightShoulder
-        [-0.20, 1.30, 1.00],  # RightElbow
-        [-0.30, 0.90, 1.00],  # RightWrist
-        [0.10, 1.80, 1.00],  # LeftShoulder
-        [0.20, 1.30, 1.00],  # LeftElbow
-        [0.50, 0.90, 0.50],  # LeftWrist
-        [0.00, 1.20, 1.00],  # MidHip
-        [-0.10, 1.20, 1.00],  # RightHip
-        [-0.10, 0.65, 1.00],  # RightKnee
-        [-0.10, -0.01, 1.00],  # RightAnkle
-        [0.10, 1.20, 1.00],  # LeftHip
-        [0.10, 0.65, 1.00],  # LeftKnee
-        [0.10, -0.01, 1.00],  # LeftAnkle
-        [-0.02, 1.91, 1.00],  # RightEye
-        [0.02, 1.91, 1.00],  # LeftEye
-        [-0.04, 1.89, 1.00],  # RightEar
-        [0.04, 1.89, 1.00],  # LeftEar
-        [0.12, -0.01, 1.01],  # LeftBigToe
-        [0.14, -0.01, 1.01],  # LeftSmallToe
-        [0.11, -0.03, .99],  # LeftHeel
-        [-0.12, - .01, 1.01],  # RightBigToe
-        [- .14, - .01, 1.01],  # RightSmallToe
-        [- .11, - .03, .99],  # RightHeel
-    ])
-
     # simulate_single(True, True, True, [point_list1, point_list2, point_list3])
-    simulate_playback(True, False, False, "test_joints.pkl", 1)
+    #simulate_playback(True, False, False, "test_joints.pkl", 1)
+    simulate_sync()
