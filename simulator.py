@@ -1,4 +1,5 @@
 import atexit
+from bisect import bisect_left
 from collections import deque
 import math
 import pickle
@@ -91,11 +92,10 @@ class Simulator:
         try:
             while not self.done_sync.value:
                 joints = np.array(self.joints_sync).reshape([25, 3])
-                self.process_frame(joints)
+                self.step(joints)
             p.disconnect()
         finally:
             self.done_sync.value = True
-
 
     def run_playback(self, mode: int):
         """
@@ -103,8 +103,14 @@ class Simulator:
         :param mode: 0: normal, 1: realtime, 2: step-by-step
         :return:
         """
-
-        if mode == 1:
+        if mode == 0:
+            start = time.time()
+            c = 0
+            for _, joints in self.frames:
+                self.step(joints)
+                c += 1
+            print(f"fps: {c / (time.time() - start)}")
+        elif mode == 1:
             start = time.time()
             i = 0
             try:
@@ -115,7 +121,7 @@ class Simulator:
                         # t, joints = frames.pop()
                         t, joints = self.frames[i]
                         i += 1
-                    self.process_frame(joints)
+                    self.step(joints)
             except IndexError:
                 pass
         elif mode == 2:
@@ -128,19 +134,20 @@ class Simulator:
                         break
                     t, joints = self.frames[i]
                     i += 1
-                    self.process_frame(joints)
+                    self.step(joints)
             except IndexError:
                 pass
         else:
-            start = time.time()
-            c = 0
-            for _, joints in self.frames:
-                self.process_frame(joints)
-                c += 1
-            print(f"fps: {c/(time.time()-start)}")
+            raise ValueError("Mode: 0, 1 or 2")
         p.disconnect()
 
-    def process_frame(self, joints: np.ndarray):
+    def process_frame_at_time(self, t: float):
+        t = t % self.frames[-1][0]  # make it a loop
+        i = bisect_left(self.frames, t, key=lambda j: j[0])
+        _, joints = self.frames[i]
+        self.step(joints)
+
+    def step(self, joints: np.ndarray):
         joints = joints[:, [0, 2, 1]]   # adjust axis to fit pybullet axis
         if self.simulate_joints:
             self.move_points(joints)
@@ -236,7 +243,7 @@ def simulate_single(simulate_limbs: bool, simulate_joints: bool, simulate_joint_
             if key == "q":
                 break
             joints = frames.popleft()
-            sim.process_frame(joints)
+            sim.step(joints)
     except IndexError:
         pass
 
