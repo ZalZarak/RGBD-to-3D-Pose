@@ -28,6 +28,7 @@ font_scale = 0.3
 font_thickness = 1
 font_color = (255, 255, 255)  # White color
 
+
 def debug_color_mask():
     def update_slider(var_name):
         new_val = int(sliders_gui[var_name].get())
@@ -200,6 +201,7 @@ def debug_search_area():
 
     cv2.namedWindow("Debug-Search-Area")
 
+    resolution = cl.resolution if cl.flip%2 == 0 else tuple(reversed(cl.resolution))
     key = None
     try:
         while key != 27:
@@ -216,7 +218,7 @@ def debug_search_area():
                 bottom_right = (center_x + n // 2, center_y + n // 2)
                 cv2.rectangle(color_image, top_left, bottom_right, (64, 64, 64), 1)
 
-                for x_search, y_search in helper.generate_search_pixels((center_x, center_y), i, search_areas, cl.resolution):
+                for x_search, y_search in helper.generate_search_pixels((center_x, center_y), i, search_areas, resolution):
                     color_image[y_search, x_search] = (0, 0, 255)
                 canvas.update_idletasks()
                 gui.update()
@@ -489,4 +491,4 @@ def debug_length(mode: int, output_filename: str = None, custom_connections=None
 
 
 if __name__ == '__main__':
-    debug_length(1)
+    debug_length(0)

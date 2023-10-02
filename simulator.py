@@ -15,36 +15,9 @@ import multiprocessing as mp
 from config import config
 
 # from openpose_handler import OpenPoseHandler
-"""
-pairs = [(1, 8), (1, 2), (1, 5), (2, 3), (3, 4), (5, 6), (6, 7), (8, 9), (9, 10), (10, 11), (8, 12), (12, 13), (13, 14), (1, 0), (0, 15),
-         (15, 17), (0, 16), (16, 18), (14, 19), (19, 20), (14, 21), (11, 22), (22, 23), (11, 24)]
-
-radii = {
-    "head": 0.11,
-    "neck": 0.06,
-    "torso": 0.2,
-    "arm": 0.05,
-    "forearm": 0.04,
-    "hand": 0.2,
-    "thigh": 0.07,
-    "leg": 0.06,
-    "foot": 0.03
-}
-
-lengths = {
-    "neck": 0.2,
-    "torso": 0.6,
-    "arm": 0.35,
-    "forearm": 0.30,
-    "thigh": 0.5,
-    "leg": 0.45,
-    "foot": 0.15,
-    "shoulder": 0.22,
-    "hip": 0.13,
-    "head": 0.8
-}"""
 
 default_direction = np.array([0, 0, 1])
+
 
 def is_joint_valid(joint: np.ndarray):
     return joint[1] != 0
@@ -100,9 +73,6 @@ class Simulator:
                 else:
                     raise ValueError(f"limbs: no connections between more then two joints: {limb}")
 
-            """for name in self.limbs.keys():
-                p.changeVisualShape(self.limbs[name], -1, rgbaColor=[0, 0, 0, 0])"""
-
         if self.simulate_joints:
             self.joints_pb = {}
             for j in self.joint_list:
@@ -112,6 +82,10 @@ class Simulator:
 
         if ready_sync is not None:
             ready_sync.set()
+
+        if playback_file is not None and playback_file != "":
+            with open(self.playback_file, 'rb') as file:
+                self.frames: [(float, np.ndarray)] = list(pickle.load(file))
 
     def run_sync(self):
         try:
@@ -129,37 +103,38 @@ class Simulator:
         :param mode: 0: normal, 1: realtime, 2: step-by-step
         :return:
         """
-        with open(self.playback_file, 'rb') as file:
-            frames: [(float, np.ndarray)] = pickle.load(file)
 
         if mode == 1:
-            frames = deque(frames)
             start = time.time()
+            i = 0
             try:
                 while True:
-                    t, joints = frames.popleft()
+                    t, joints = self.frames[i]
+                    i += 1
                     while t < time.time() - start:
                         # t, joints = frames.pop()
-                        t, joints = frames.popleft()
+                        t, joints = self.frames[i]
+                        i += 1
                     self.process_frame(joints)
             except IndexError:
                 pass
         elif mode == 2:
             print("Press any key to simulate one frame. Press q to terminate")
-            frames = deque(frames)
+            i = 0
             try:
                 while True:
                     key = input()
                     if key == "q":
                         break
-                    t, joints = frames.popleft()
+                    t, joints = self.frames[i]
+                    i += 1
                     self.process_frame(joints)
             except IndexError:
                 pass
         else:
             start = time.time()
             c = 0
-            for _, joints in frames:
+            for _, joints in self.frames:
                 self.process_frame(joints)
                 c += 1
             print(f"fps: {c/(time.time()-start)}")

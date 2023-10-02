@@ -20,7 +20,7 @@ Main:
   resolution: [480, 270]
   fps: 30
   flip: 0
-  translation: [0, 0, 0]
+  translation: [0, 1, 0]
   rotation: [0, 0, 0]
   # depth_settings
   visual_preset: "High Density"
@@ -159,7 +159,7 @@ OpenPoseHandler:
   # Ubuntu
   openpose_python_path_ubuntu: "/home/pk/programs/openpose/build/python"
   model_folder_ubuntu: "/home/pk/programs/openpose/models/"
-  # Window
+  # Windows
   openpose_python_path_win: "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/build2/python/openpose/Release/"
   openpose_release_path_win: "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/build2/x64/Release"
   openpose_bin_path_win: "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/build2/bin"
