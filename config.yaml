@@ -165,6 +165,42 @@ OpenPoseHandler:
   openpose_bin_path_win: "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/build2/bin"
   model_folder_win: "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/models"
 Simulator:
+  playback: true
+  playback_file: test_joints.pkl
+  playback_mode: 1
+  simulate_limbs: True
+  simulate_joints: False
+  simulate_joint_connections: False
+  move_in_physic_sim: True
+  min_distance_to_move_outside_physic_sim: 0.1
+  time_delta_move_in_physic_sim: 0.01
+  joint_map: # do not change, as defined in OpenPose, as above
+    Nose: 0
+    Neck: 1
+    RShoulder: 2
+    RElbow: 3
+    RWrist: 4
+    LShoulder: 5
+    LElbow: 6
+    LWrist: 7
+    MidHip: 8
+    RHip: 9
+    RKnee: 10
+    RAnkle: 11
+    LHip: 12
+    LKnee: 13
+    LAnkle: 14
+    REye: 15
+    LEye: 16
+    REar: 17
+    LEar: 18
+    LBigToe: 19
+    LSmallToe: 20
+    LHeel: 21
+    RBigToe: 22
+    RSmallToe: 23
+    RHeel: 24
+    Background: 25
   limbs: # must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
     - [ 'Nose' ]
     - [ 'Nose', 'Neck' ]

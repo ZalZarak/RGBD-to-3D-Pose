@@ -18,7 +18,7 @@ import helper
 from config import config
 from old.main import visualize_points
 from openpose_handler import OpenPoseHandler
-from simulator import simulate_sync_as_subprocess
+import simulator
 
 import multiprocessing as mp
 
@@ -288,7 +288,7 @@ class RGBDto3DPose:
             self.done_sync = mp.Value('b', False)
             self.ready_sync = mp.Event()
             self.joints_sync = mp.Array('f', np.zeros([25 * 3]))
-            simulator_process = mp.Process(target=simulate_sync_as_subprocess,
+            simulator_process = mp.Process(target=simulator.run_as_subprocess,
                                            args=(self.joints_sync, self.ready_sync, self.done_sync, self.simulate_limbs, self.simulate_joints,
                                                  self.simulate_joint_connections))
             simulator_process.start()

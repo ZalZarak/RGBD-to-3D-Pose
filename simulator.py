@@ -27,21 +27,21 @@ def is_joint_valid(joint: np.ndarray):
 class Simulator:
 
     # TODO: Collision shapes: Dont forget to activate/deactivate
-    def __init__(self, simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool,
+    def __init__(self, playback: bool, playback_file: str|None, playback_mode: int,
+                 simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool,
+                 move_in_physic_sim: bool, min_distance_to_move_outside_physic_sim: float, time_delta_move_in_physic_sim: float,
                  joint_map: dict, limbs: list[tuple[str, str]], radii: dict, lengths: dict,
-                 joints_sync=None, ready_sync=None, done_sync=None, playback_file: str = None,
-                 start_RGBDto3DPose=False):
-        self.joints_sync = joints_sync
-        self.done_sync = done_sync
-        self.ready_sync = ready_sync
+                 as_subprocess=False, joints_sync=None, ready_sync=None, done_sync=None):
+        self.playback = playback and not as_subprocess
         self.playback_file = playback_file
+        self.playback_mode = playback_mode
         self.simulate_limbs = simulate_limbs
         self.simulate_joints = simulate_joints
         self.simulate_joint_connections = simulate_joint_connections
+        self.move_in_physic_sim = move_in_physic_sim
+        self.min_distance_to_move_outside_physic_sim = min_distance_to_move_outside_physic_sim
+        self.time_delta = time_delta_move_in_physic_sim
         self.limb_list = []
-        self.move_in_physic_sim = True
-        self.min_distance_to_move_outside_physic_sim = 0.1
-        self.time_delta = 0.01
         for i in limbs:
             l = []
             for j in i:
@@ -53,15 +53,18 @@ class Simulator:
                 self.joint_list.append(j)
         self.joint_list = set(self.joint_list)
         self.debug_lines = []
+        self.joints_sync = joints_sync
+        self.done_sync = done_sync
+        self.ready_sync = ready_sync
 
         # start main
-        if start_RGBDto3DPose:
+        if not as_subprocess and not playback:
             self.done_sync = mp.Value('b', False)
             self.ready_sync = mp.Event()
             self.joints_sync = mp.Array('f', np.zeros([25 * 3]))
 
-            from main import run_as_subprocess
-            cl_process = mp.Process(target=run_as_subprocess,
+            import main
+            cl_process = mp.Process(target=main.run_as_subprocess,
                                     args=(simulate_limbs, simulate_joints, simulate_joint_connections, self.done_sync, self.ready_sync, self.joints_sync))
             cl_process.start()
 
@@ -96,12 +99,8 @@ class Simulator:
 
         visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=0.3, rgbaColor=[255, 0, 0, 0.5])
         collision_shape = p.createCollisionShape(p.GEOM_SPHERE, radius=0.3)
-        body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, baseCollisionShapeIndex=collision_shape, basePosition=[0.5, 0.5, 1])
+        p.createMultiBody(baseVisualShapeIndex=visual_shape, baseCollisionShapeIndex=collision_shape, basePosition=[0.5, 0.5, 1])
 
-        """for body1 in self.limbs_pb.values():
-            for body2 in self.limbs_pb.values():
-                if body1 != body2:
-                    p.setCollisionFilterPair(body1, body2, -1, -1, False)"""
         for body1 in self.limbs_pb.values():
             p.setCollisionFilterGroupMask(body1, -1, 1, 0)
 
@@ -112,15 +111,23 @@ class Simulator:
                 body_id = p.createMultiBody(baseMass=0, baseVisualShapeIndex=sphere_id, baseCollisionShapeIndex=-1, basePosition=[0, 0, 0])
                 self.joints_pb[j] = body_id
 
-        if playback_file is not None and playback_file != "":
-            with open(self.playback_file, 'rb') as file:
-                self.frames: [(float, np.ndarray)] = list(pickle.load(file))
+        if playback:
+            try:
+                with open(self.playback_file, 'rb') as file:
+                    self.frames: [(float, np.ndarray)] = list(pickle.load(file))
+            except FileNotFoundError:
+                raise FileNotFoundError("Provide playback file")
 
-        if start_RGBDto3DPose:
+        if not as_subprocess and not playback:
             self.ready_sync.wait()
-        elif playback_file is None:
+        elif as_subprocess:
             self.ready_sync.set()
 
+    def run(self):
+        if self.playback:
+            self.run_playback()
+        else:
+            self.run_sync()
 
     def run_sync(self):
         try:
@@ -134,20 +141,20 @@ class Simulator:
         joints = np.array(self.joints_sync).reshape([25, 3])
         self.step(joints)
 
-    def run_playback(self, mode: int):
+    def run_playback(self):
         """
 
         :param mode: 0: normal, 1: realtime, 2: step-by-step
         :return:
         """
-        if mode == 0:
+        if self.playback_mode == 0:
             start = time.time()
             c = 0
             for _, joints in self.frames:
                 self.step(joints)
                 c += 1
             print(f"fps: {c / (time.time() - start)}")
-        elif mode == 1:
+        elif self.playback_mode == 1:
             start = time.time()
             i = 0
             try:
@@ -161,7 +168,7 @@ class Simulator:
                     self.step(joints)
             except IndexError:
                 pass
-        elif mode == 2:
+        elif self.playback_mode == 2:
             print("Press any key to simulate one frame. Press q to terminate")
             i = 0
             try:
@@ -264,64 +271,26 @@ class Simulator:
                 self.debug_lines.append(p.addUserDebugLine(lineFromXYZ=joints[limb[0]], lineToXYZ=joints[limb[1]], lineColorRGB=[0, 0, 0.9], lineWidth=5))
 
 
-def simulate_sync(simulate_shape: bool = True, simulate_joints: bool = False, simulate_joint_connections: bool = False):
-    joint_map = config["Main"]["joint_map"]
-    limbs = config["Simulator"]["limbs"]
-    radii = config["Simulator"]["radii"]
-    lengths = config["Simulator"]["lengths"]
-    config_RGBDto3DPose = config["Main"]
-
-    sim = Simulator(simulate_shape, simulate_joints, simulate_joint_connections,
-                    joint_map, limbs, radii, lengths, start_RGBDto3DPose=True, config_RGBDto3DPose=config_RGBDto3DPose)
-    sim.run_sync()
+def run():
+    sim = Simulator(**config["Simulator"])
+    sim.run()
 
 
-def simulate_sync_as_subprocess(joints_sync, ready_sync, done_sync, simulate_shape: bool, simulate_joints: bool, simulate_joint_connections: bool):
-    joint_map = config["Main"]["joint_map"]
-    limbs = config["Simulator"]["limbs"]
-    radii = config["Simulator"]["radii"]
-    lengths = config["Simulator"]["lengths"]
+def run_as_subprocess(joints_sync, ready_sync, done_sync, simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool):
+    config_sim = config["Simulator"]
+    config_sim["playback"] = False
+    config_sim["as_subprocess"] = True
+    config_sim["joints_sync"] = joints_sync
+    config_sim["ready_sync"] = ready_sync
+    config_sim["done_sync"] = done_sync
+    config_sim["simulate_limbs"] = simulate_limbs
+    config_sim["simulate_joints"] = simulate_joints
+    config_sim["simulate_joint_connections"] = simulate_joint_connections
+    print(config_sim)
 
-    sim = Simulator(simulate_shape, simulate_joints, simulate_joint_connections,
-                    joint_map, limbs, radii, lengths,
-                    joints_sync, ready_sync, done_sync)
-    sim.run_sync()
-
-
-def simulate_playback(simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool, playback_file: str, mode: int):
-    joint_map = config["Main"]["joint_map"]
-    limbs = config["Simulator"]["limbs"]
-    radii = config["Simulator"]["radii"]
-    lengths = config["Simulator"]["lengths"]
-
-    sim = Simulator(simulate_limbs, simulate_joints, simulate_joint_connections,
-                    joint_map, limbs, radii, lengths, playback_file=playback_file)
-    sim.run_playback(mode)
-
-
-def simulate_single(simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool, joints: list[np.ndarray]):
-    joint_map = config["Main"]["joint_map"]
-    limbs = config["Simulator"]["limbs"]
-    radii = config["Simulator"]["radii"]
-    lengths = config["Simulator"]["lengths"]
-
-    sim = Simulator(simulate_limbs, simulate_joints, simulate_joint_connections,
-                    joint_map, limbs, radii, lengths)
-
-    print("Press any key to simulate one frame. Press q to terminate")
-    frames = deque(joints)
-    try:
-        while True:
-            key = input()
-            if key == "q":
-                break
-            joints = frames.popleft()
-            sim.step(joints)
-    except IndexError:
-        pass
+    sim = Simulator(**config_sim)
+    sim.run()
 
 
 if __name__ == '__main__':
-    # simulate_single(True, True, True, [point_list1, point_list2, point_list3])
-    simulate_playback(True, False, False, "test_joints.pkl", 1)
-    #simulate_sync()
+    run()
