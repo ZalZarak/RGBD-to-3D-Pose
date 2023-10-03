@@ -63,8 +63,8 @@ class Simulator:
             self.ready_sync = mp.Event()
             self.joints_sync = mp.Array('f', np.zeros([25 * 3]))
 
-            import main
-            cl_process = mp.Process(target=main.run_as_subprocess,
+            import rgbd_to_3d_pose
+            cl_process = mp.Process(target=rgbd_to_3d_pose.run_as_subprocess,
                                     args=(simulate_limbs, simulate_joints, simulate_joint_connections, self.done_sync, self.ready_sync, self.joints_sync))
             cl_process.start()
 

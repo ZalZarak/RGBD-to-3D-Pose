@@ -10,7 +10,7 @@ import pandas as pd
 import pyrealsense2 as rs
 
 import helper
-import main
+from rgbd_to_3d_pose import RGBDto3DPose
 from config import config
 
 color_ranges = {
@@ -83,7 +83,7 @@ def debug_color_mask():
     debug_config = copy.deepcopy(config["Main"])
     debug_config["save_joints"] = debug_config["save_bag"] = debug_config["show_rgb"] = debug_config["show_depth"] = debug_config["show_joints"] \
         = debug_config["show_color_mask"] = debug_config["simulate_limbs"] = debug_config["simulate_joints"] = debug_config["simulate_joint_connections"] = False
-    cl = main.RGBDto3DPose(**debug_config)
+    cl = RGBDto3DPose(**debug_config)
 
     cl.prepare()
 
@@ -116,7 +116,7 @@ def debug_search_area():
     debug_config["save_joints"] = debug_config["save_bag"] = debug_config["show_rgb"] = debug_config["show_depth"] \
         = debug_config["show_color_mask"] = debug_config["simulate_limbs"] = debug_config["simulate_joints"] = debug_config["simulate_joint_connections"] = False
     debug_config["show_joints"] = True
-    cl = main.RGBDto3DPose(**debug_config)
+    cl = RGBDto3DPose(**debug_config)
     cl.prepare()
 
     def update_slider(var_name, value_idx):
@@ -247,7 +247,7 @@ def debug_length(mode: int, output_filename: str = None, custom_connections=None
         = debug_config["show_color_mask"] = debug_config["simulate_limbs"] = debug_config["simulate_joints"] = debug_config[
         "simulate_joint_connections"] = False
     debug_config["show_joints"] = True
-    cl = main.RGBDto3DPose(**debug_config)
+    cl = RGBDto3DPose(**debug_config)
     cl.prepare()
 
 
