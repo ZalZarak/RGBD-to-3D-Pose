@@ -491,4 +491,4 @@ def debug_length(mode: int, output_filename: str = None, custom_connections=None
 
 
 if __name__ == '__main__':
-    debug_length(0)
+    debug_color_mask()

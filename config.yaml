@@ -85,7 +85,7 @@ Main:
     - [ 'RAnkle', 'RBigToe' ]
     - [ 'LAnkle', 'LBigToe' ]
   color_validation_joints_hr: [RWrist, LWrist]
-  color_range: [ [0, 135, 0], [255, 255, 75] ]
+  color_range: [ [0, 75, 0], [255, 255, 53] ]
   lengths_hr:   # must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
     Nose-Neck: [0.125, 0.275]
     Nose-LEye: [0.03, 0.06]

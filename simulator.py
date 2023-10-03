@@ -30,7 +30,7 @@ class Simulator:
     def __init__(self, simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool,
                  joint_map: dict, limbs: list[tuple[str, str]], radii: dict, lengths: dict,
                  joints_sync=None, ready_sync=None, done_sync=None, playback_file: str = None,
-                 start_RGBDto3DPose=False, config_RGBDto3DPose=None):
+                 start_RGBDto3DPose=False):
         self.joints_sync = joints_sync
         self.done_sync = done_sync
         self.ready_sync = ready_sync
@@ -39,6 +39,9 @@ class Simulator:
         self.simulate_joints = simulate_joints
         self.simulate_joint_connections = simulate_joint_connections
         self.limb_list = []
+        self.move_in_physic_sim = True
+        self.min_distance_to_move_outside_physic_sim = 0.1
+        self.time_delta = 0.01
         for i in limbs:
             l = []
             for j in i:
@@ -64,6 +67,7 @@ class Simulator:
 
         # Connect to the PyBullet physics server
         physicsClient = p.connect(p.GUI)
+        p.setPhysicsEngineParameter(enableConeFriction=True)
 
         # Set the camera position and orientation
         p.resetDebugVisualizerCamera(cameraDistance=2.5, cameraYaw=0, cameraPitch=-10,
@@ -72,20 +76,34 @@ class Simulator:
         if simulate_limbs:
             self.limbs_pb = {}
             # pregenerate geometry
+            n = 1
             for limb in limbs:
                 if len(limb) == 1:  # if this limb has only one point, like head or hand, it's simulated with a sphere
-                    visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=radii[limb[0]], rgbaColor=[0, 0, 0, 0])
-                    body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
+                    visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=radii[limb[0]]*n, rgbaColor=[0, 0, 0, 0])
+                    collision_shape = p.createCollisionShape(p.GEOM_SPHERE, radius=radii[limb[0]] * n)
+                    body_id = p.createMultiBody(baseMass=-1, baseVisualShapeIndex=visual_shape, baseCollisionShapeIndex=visual_shape, basePosition=[0, 0, 0])
                     self.limbs_pb[(joint_map[limb[0]],)] = body_id
                 elif len(limb) == 2: # if this limb has two points, like head or hand, it's simulated with a cylinder
                     limb_str = f"{limb[0]}-{limb[1]}"
-                    visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii[limb_str], length=lengths[limb_str], rgbaColor=[0, 0, 0, 0])
-                    body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, basePosition=[0, -10, 0])
+                    visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii[limb_str]*n, length=lengths[limb_str]*n, rgbaColor=[0, 0, 0, 0])
+                    collision_shape = p.createCollisionShape(p.GEOM_CYLINDER, radius=radii[limb_str] * n, height=lengths[limb_str] * n)
+                    body_id = p.createMultiBody(baseMass=-1, baseVisualShapeIndex=visual_shape, baseCollisionShapeIndex=visual_shape, basePosition=[0, 0, 0])
                     if joint_map[limb[0]] >= joint_map[limb[1]]:
                         raise ValueError(f"limbs: for all tuples (a,b): joint_map[a] < joint_map[b], but joint_map[{limb[0]}] >= joint_map[{limb[1]}]")
                     self.limbs_pb[(joint_map[limb[0]], joint_map[limb[1]])] = body_id
                 else:
                     raise ValueError(f"limbs: no connections between more then two joints: {limb}")
+
+        visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=0.3, rgbaColor=[255, 0, 0, 0.5])
+        collision_shape = p.createCollisionShape(p.GEOM_SPHERE, radius=0.3)
+        body_id = p.createMultiBody(baseVisualShapeIndex=visual_shape, baseCollisionShapeIndex=collision_shape, basePosition=[0.5, 0.5, 1])
+
+        """for body1 in self.limbs_pb.values():
+            for body2 in self.limbs_pb.values():
+                if body1 != body2:
+                    p.setCollisionFilterPair(body1, body2, -1, -1, False)"""
+        for body1 in self.limbs_pb.values():
+            p.setCollisionFilterGroupMask(body1, -1, 1, 0)
 
         if self.simulate_joints:
             self.joints_pb = {}
@@ -175,13 +193,20 @@ class Simulator:
         if self.simulate_limbs:
             self.move_limbs(joints)
         p.stepSimulation()
+        collisions = p.getContactPoints()
+        if len(collisions) > 0:
+            print("Collisions detected!")
+        else:
+            print("No collisions.")
 
     def move_limbs(self, joints: np.ndarray):
         for limb in self.limb_list:
             limb_pb = self.limbs_pb[limb]
             if all([is_joint_valid(joints[l]) for l in limb]):  # if all limb joints are valid
                 if len(limb) == 1:  # if it's a sphere
-                    p.resetBasePositionAndOrientation(limb_pb, joints[limb[0]], p.getQuaternionFromEuler([0, 0, 0]))
+                    midpoint = joints[limb[0]]
+                    orientation = p.getQuaternionFromEuler([0, 0, 0])
+                    # p.resetBasePositionAndOrientation(limb_pb, joints[limb[0]], p.getQuaternionFromEuler([0, 0, 0]))
                 else:   # it's a cylinder
                     coord1, coord2 = joints[limb[0]], joints[limb[1]]
 
@@ -195,6 +220,23 @@ class Simulator:
                     rotation_angle = np.arccos(np.dot(default_direction, direction) / (np.linalg.norm(default_direction) * np.linalg.norm(direction)))
                     orientation = p.getQuaternionFromAxisAngle(rotation_axis, rotation_angle)
 
+                if self.move_in_physic_sim:
+                    current_midpoint, current_orientation = p.getBasePositionAndOrientation(limb_pb)
+                    position_diff = np.array(midpoint) - np.array(current_midpoint)
+
+                    if np.linalg.norm(position_diff) >= self.min_distance_to_move_outside_physic_sim:
+                        p.resetBasePositionAndOrientation(limb_pb, midpoint, orientation)
+                    else:
+                        linear_vel = position_diff / self.time_delta
+
+                        # Calculate angular velocity
+                        orientation_diff = p.getDifferenceQuaternion(current_orientation, orientation)
+                        axis, angle = p.getAxisAngleFromQuaternion(orientation_diff)
+                        angular_vel = (np.array(axis) * angle) / self.time_delta
+
+                        # Set the linear and angular velocities using p.resetBaseVelocity
+                        p.resetBaseVelocity(limb_pb, linearVelocity=linear_vel, angularVelocity=angular_vel)
+                else:
                     # Update existing cylinder's properties
                     p.resetBasePositionAndOrientation(limb_pb, midpoint, orientation)
 
@@ -281,5 +323,5 @@ def simulate_single(simulate_limbs: bool, simulate_joints: bool, simulate_joint_
 
 if __name__ == '__main__':
     # simulate_single(True, True, True, [point_list1, point_list2, point_list3])
-    #simulate_playback(True, False, False, "test_joints.pkl", 1)
-    simulate_sync()
+    simulate_playback(True, False, False, "test_joints.pkl", 1)
+    #simulate_sync()
