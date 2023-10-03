@@ -168,7 +168,7 @@ class RGBDto3DPose:
         self.simulate_joints = simulate_joints
         self.simulate_joint_connections = simulate_joint_connections
 
-        self.start_simulator = start_simulator          # if True and simulate, main will start Simulator, if false and simulate, Simulator will start main
+        self.start_simulator = start_simulator          # if True and simulate, this will start Simulator, if false and simulate, Simulator will start this
         self.done_sync = done_sync if done_sync is not None else mp.Value('b', False) # to communicate with simulator if one process ended
         self.ready_sync = ready_sync                    # to communicate when process is done initializing
         self.joints_sync = joints_sync                  # to forward joints to simulator
@@ -561,12 +561,12 @@ class RGBDto3DPose:
 
 
 def run():
-    cl = RGBDto3DPose(**config["Main"])
+    cl = RGBDto3DPose(**config["RGBDto3DPose"])
     cl.run()
 
 
 def run_as_subprocess(simulate_limbs, simulate_joints, simulate_joint_connections, done_sync, ready_sync, joints_sync):
-    config_RGBDto3DPose = config["Main"]
+    config_RGBDto3DPose = config["RGBDto3DPose"]
     config_RGBDto3DPose["playback"] = False
     config_RGBDto3DPose["simulate_limbs"] = simulate_limbs
     config_RGBDto3DPose["simulate_joints"] = simulate_joints

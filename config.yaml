@@ -1,4 +1,5 @@
-Main:
+run_from: 1   # RGBDto3DPose: 0, Simulator: 1
+RGBDto3DPose:
   playback: false
   playback_file: "test.bag"
   duration: -1

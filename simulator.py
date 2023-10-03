@@ -57,7 +57,7 @@ class Simulator:
         self.done_sync = done_sync
         self.ready_sync = ready_sync
 
-        # start main
+        # start RGBDto3DPose
         if not as_subprocess and not playback:
             self.done_sync = mp.Value('b', False)
             self.ready_sync = mp.Event()
