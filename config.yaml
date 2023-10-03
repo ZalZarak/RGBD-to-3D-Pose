@@ -173,7 +173,7 @@ Simulator:
   simulate_joints: False
   simulate_joint_connections: False
   move_in_physic_sim: True
-  min_distance_to_move_outside_physic_sim: 0.1
+  min_distance_to_move_outside_physic_sim: 0.05
   time_delta_move_in_physic_sim: 0.01
   joint_map: # do not change, as defined in OpenPose, as above
     Nose: 0

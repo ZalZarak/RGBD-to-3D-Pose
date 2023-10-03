@@ -1,22 +1,14 @@
-import copy
-import math
 import os
 import pickle
 import time
-from pathlib import Path
 
 import cv2
 import numpy as np
 import pyrealsense2 as rs
-import yaml
-from cfonts import render as render_text
-from math import sin, cos, sqrt
-
-from numpy import pi
+from math import sin, cos
 
 import helper
 from config import config
-from old.main import visualize_points
 from openpose_handler import OpenPoseHandler
 import simulator
 

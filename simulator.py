@@ -1,21 +1,14 @@
-import atexit
 from bisect import bisect_left
-from collections import deque
-import math
 import pickle
 import time
-from math import sqrt
 
-import cv2
 import numpy as np
 import pybullet as p
-import pybullet_data
 
 import multiprocessing as mp
 
 from config import config
 
-# from openpose_handler import OpenPoseHandler
 
 default_direction = np.array([0, 0, 1])
 
