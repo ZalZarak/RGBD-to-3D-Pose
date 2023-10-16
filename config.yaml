@@ -1,4 +1,4 @@
-run_from: 1   # RGBDto3DPose: 0, Simulator: 1
+run_from: 2   # RGBDto3DPose: 0, Simulator: 1, Debug: 2
 RGBDto3DPose:
   playback: false
   playback_file: "test.bag"
@@ -14,7 +14,7 @@ RGBDto3DPose:
   show_joints: true
   show_color_mask: true
   # simulate
-  simulate_limbs: true
+  simulate_limbs: false
   simulate_joints: false
   simulate_joint_connections: false
   # camera
@@ -247,3 +247,11 @@ Simulator:
     LKnee-LAnkle: 0.45
     RAnkle-RBigToe: 0.15
     LAnkle-LBigToe: 0.15
+Debug:
+  mode: 2   # 0: color mask, 1: search area, 2: length
+  length_args:
+    mode: 0   # 0: length, 1: depth
+    output_filename: null
+    custom_connections: null
+    connections_except: null
+

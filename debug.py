@@ -14,12 +14,12 @@ from rgbd_to_3d_pose import RGBDto3DPose
 from config import config
 
 color_ranges = {
-    "upper blue": config["Main"]["color_range"][1][0],
-    "upper green": config["Main"]["color_range"][1][1],
-    "upper red": config["Main"]["color_range"][1][2],
-    "lower blue": config["Main"]["color_range"][0][0],
-    "lower green": config["Main"]["color_range"][0][1],
-    "lower red": config["Main"]["color_range"][0][2],
+    "upper blue": config["RGBDto3DPose"]["color_range"][1][0],
+    "upper green": config["RGBDto3DPose"]["color_range"][1][1],
+    "upper red": config["RGBDto3DPose"]["color_range"][1][2],
+    "lower blue": config["RGBDto3DPose"]["color_range"][0][0],
+    "lower green": config["RGBDto3DPose"]["color_range"][0][1],
+    "lower red": config["RGBDto3DPose"]["color_range"][0][2],
 }
 
 # Define the font settings
@@ -80,7 +80,7 @@ def debug_color_mask():
     print_button = tk.Button(gui, text="Print", command=print_values)
     print_button.pack(side=tk.BOTTOM, anchor=tk.SE)
 
-    debug_config = copy.deepcopy(config["Main"])
+    debug_config = copy.deepcopy(config["RGBDto3DPose"])
     debug_config["save_joints"] = debug_config["save_bag"] = debug_config["show_rgb"] = debug_config["show_depth"] = debug_config["show_joints"] \
         = debug_config["show_color_mask"] = debug_config["simulate_limbs"] = debug_config["simulate_joints"] = debug_config["simulate_joint_connections"] = False
     cl = RGBDto3DPose(**debug_config)
@@ -112,7 +112,7 @@ def debug_color_mask():
 def debug_search_area():
     # mode 0: length, mode 1: depth, mode 2: search area
 
-    debug_config = copy.deepcopy(config["Main"])
+    debug_config = copy.deepcopy(config["RGBDto3DPose"])
     debug_config["save_joints"] = debug_config["save_bag"] = debug_config["show_rgb"] = debug_config["show_depth"] \
         = debug_config["show_color_mask"] = debug_config["simulate_limbs"] = debug_config["simulate_joints"] = debug_config["simulate_joint_connections"] = False
     debug_config["show_joints"] = True
@@ -242,7 +242,7 @@ def debug_length(mode: int, output_filename: str = None, custom_connections=None
     assert mode in (0, 1), "mode is 0 or 1."
     assert connections_except is None or custom_connections is None, "Don't input connections_except and custom_connections at the same time"
 
-    debug_config = copy.deepcopy(config["Main"])
+    debug_config = copy.deepcopy(config["RGBDto3DPose"])
     debug_config["save_joints"] = debug_config["save_bag"] = debug_config["show_rgb"] = debug_config["show_depth"] \
         = debug_config["show_color_mask"] = debug_config["simulate_limbs"] = debug_config["simulate_joints"] = debug_config[
         "simulate_joint_connections"] = False
@@ -393,7 +393,7 @@ def debug_length(mode: int, output_filename: str = None, custom_connections=None
                     else:
                         l = abs(point1_3d[2] - point2_3d[2])
                         valid = (cl.depth_deviations_hr[lengths_key] < 0 or l <= cl.depth_deviations_hr[lengths_key])
-                    color = (128, 128, 128) if valid else (0, 0, 200)
+                    color = (0, 200, 0) if valid else (0, 0, 200)
                     lengths[lengths_key].append(l)
                     text = str(l.round(2))
 

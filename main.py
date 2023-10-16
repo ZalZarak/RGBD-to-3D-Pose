@@ -1,3 +1,4 @@
+import debug
 from config import config
 import rgbd_to_3d_pose
 import simulator
@@ -7,5 +8,12 @@ if __name__ == '__main__':
         rgbd_to_3d_pose.run()
     elif config["run_from"] == 1:
         simulator.run()
+    elif config["run_from"] == 2:
+        if config["Debug"]["mode"] == 0:
+            debug.debug_color_mask()
+        elif config["Debug"]["mode"] == 1:
+            debug.debug_search_area()
+        elif config["Debug"]["mode"] == 2:
+            debug.debug_length(**config["Debug"]["length_args"])
     else:
         raise ValueError("run_from: 0 or 1")
