@@ -1,6 +1,6 @@
-run_from: 2   # RGBDto3DPose: 0, Simulator: 1, Debug: 2
+run_from: 0   # RGBDto3DPose: 0, Simulator: 1, Debug: 2
 RGBDto3DPose:
-  playback: false
+  playback: true
   playback_file: "test.bag"
   duration: -1
   countdown: -1
@@ -14,13 +14,13 @@ RGBDto3DPose:
   show_joints: true
   show_color_mask: true
   # simulate
-  simulate_limbs: false
+  simulate_limbs: true
   simulate_joints: false
   simulate_joint_connections: false
   # camera
   resolution: [480, 270]
   fps: 30
-  flip: 0
+  flip: 1
   translation: [0, 1, 0]
   rotation: [0, 0, 0]
   # depth_settings
@@ -88,7 +88,7 @@ RGBDto3DPose:
   color_validation_joints_hr: [RWrist, LWrist]
   color_range: [ [0, 75, 0], [255, 255, 53] ]
   lengths_hr:   # must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
-    Nose-Neck: [0.125, 0.275]
+    Nose-Neck: [0.17, 0.27]
     Nose-LEye: [0.03, 0.06]
     Nose-REye: [0.03, 0.06]
     LEye-LEar: [0.07, 0.12]  # with this deviation down it will invalidate front view of face but make it robuster to occlusion. If front, eye detection should work
@@ -99,7 +99,7 @@ RGBDto3DPose:
     RShoulder-RElbow: [0.27, 0.36]
     LElbow-LWrist: [0.26, 0.32]
     RElbow-RWrist: [0.26, 0.32]
-    Neck-MidHip: [0.37, 0.595]
+    Neck-MidHip: [0.46, 0.595]
     MidHip-LHip: [0.1, 0.13]
     MidHip-RHip: [0.1, 0.13]
     LHip-LKnee: [0.38, 0.49]
@@ -130,32 +130,32 @@ RGBDto3DPose:
     LAnkle-LBigToe: -1
     RAnkle-RBigToe: -1
   search_areas_hr:  # [deviation, skip] in pixels
-    Nose: [8, 3]
-    Neck: [12, 3]
-    RShoulder: [9, 2]
-    RElbow: [12, 2]
-    RWrist: [12, 2]
-    LShoulder: [9, 2]
-    LElbow: [12, 2]
-    LWrist: [12, 2]
-    MidHip: [15, 4]
-    RHip: [6, 5]
-    RKnee: [5, 4]
-    RAnkle: [4, 3]
-    LHip: [6, 5]
-    LKnee: [5, 4]
-    LAnkle: [4, 3]
-    REye: [0, 0]
-    LEye: [0, 0]
-    REar: [0, 0]
-    LEar: [0, 0]
-    LBigToe: [0, 0]
-    LSmallToe: [0, 0]
-    LHeel: [0, 0]
-    RBigToe: [0, 0]
-    RSmallToe: [0, 0]
-    RHeel: [0, 0]
-    Background: [0, 0]
+    Nose: [ 8, 3 ]
+    Neck: [ 12, 3 ]
+    RShoulder: [ 9, 1 ]
+    RElbow: [ 9, 1 ]
+    RWrist: [ 9, 1 ]
+    LShoulder: [ 9, 1 ]
+    LElbow: [ 9, 1 ]
+    LWrist: [ 9, 1 ]
+    MidHip: [ 15, 3 ]
+    RHip: [ 8, 3 ]
+    RKnee: [ 5, 4 ]
+    RAnkle: [ 4, 3 ]
+    LHip: [ 8, 3 ]
+    LKnee: [ 5, 4 ]
+    LAnkle: [ 4, 3 ]
+    REye: [ 0, 0 ]
+    LEye: [ 0, 0 ]
+    REar: [ 0, 0 ]
+    LEar: [ 0, 0 ]
+    LBigToe: [ 0, 0 ]
+    LSmallToe: [ 0, 0 ]
+    LHeel: [ 0, 0 ]
+    RBigToe: [ 0, 0 ]
+    RSmallToe: [ 0, 0 ]
+    RHeel: [ 0, 0 ]
+    Background: [ 0, 0 ]
 OpenPoseHandler:
   # Ubuntu
   openpose_python_path_ubuntu: "/home/pk/programs/openpose/build/python"
