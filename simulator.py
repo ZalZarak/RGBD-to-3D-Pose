@@ -20,7 +20,7 @@ def is_joint_valid(joint: np.ndarray):
 class Simulator:
 
     # TODO: Collision shapes: Dont forget to activate/deactivate
-    def __init__(self, playback: bool, playback_file: str|None, playback_mode: int,
+    def __init__(self, start_pybullet: bool, playback: bool, playback_file: str|None, playback_mode: int,
                  simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool,
                  move_in_physic_sim: bool, min_distance_to_move_outside_physic_sim: float, time_delta_move_in_physic_sim: float,
                  joint_map: dict, limbs: list[tuple[str, str]], radii: dict, lengths: dict,
@@ -62,7 +62,8 @@ class Simulator:
             cl_process.start()
 
         # Connect to the PyBullet physics server
-        physicsClient = p.connect(p.GUI)
+        if start_pybullet:
+            p.connect(p.GUI)
         p.setPhysicsEngineParameter(enableConeFriction=True)
 
         # Set the camera position and orientation
@@ -76,13 +77,13 @@ class Simulator:
             for limb in limbs:
                 if len(limb) == 1:  # if this limb has only one point, like head or hand, it's simulated with a sphere
                     visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=radii[limb[0]]*n, rgbaColor=[0, 0, 0, 0])
-                    collision_shape = p.createCollisionShape(p.GEOM_SPHERE, radius=radii[limb[0]] * n)
+                    # collision_shape = p.createCollisionShape(p.GEOM_SPHERE, radius=radii[limb[0]] * n)
                     body_id = p.createMultiBody(baseMass=-1, baseVisualShapeIndex=visual_shape, baseCollisionShapeIndex=visual_shape, basePosition=[0, 0, 0])
                     self.limbs_pb[(joint_map[limb[0]],)] = body_id
                 elif len(limb) == 2: # if this limb has two points, like head or hand, it's simulated with a cylinder
                     limb_str = f"{limb[0]}-{limb[1]}"
                     visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii[limb_str]*n, length=lengths[limb_str]*n, rgbaColor=[0, 0, 0, 0])
-                    collision_shape = p.createCollisionShape(p.GEOM_CYLINDER, radius=radii[limb_str] * n, height=lengths[limb_str] * n)
+                    # collision_shape = p.createCollisionShape(p.GEOM_CYLINDER, radius=radii[limb_str] * n, height=lengths[limb_str] * n)
                     body_id = p.createMultiBody(baseMass=-1, baseVisualShapeIndex=visual_shape, baseCollisionShapeIndex=visual_shape, basePosition=[0, 0, 0])
                     if joint_map[limb[0]] >= joint_map[limb[1]]:
                         raise ValueError(f"limbs: for all tuples (a,b): joint_map[a] < joint_map[b], but joint_map[{limb[0]}] >= joint_map[{limb[1]}]")
@@ -181,6 +182,7 @@ class Simulator:
         self.step(joints)
 
     def step(self, joints: np.ndarray):
+        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, int(False))
         joints = joints[:, [0, 2, 1]]   # adjust axis to fit pybullet axis
         if self.simulate_joints:
             self.move_points(joints)
@@ -189,6 +191,7 @@ class Simulator:
         if self.simulate_limbs:
             self.move_limbs(joints)
         p.stepSimulation()
+        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, int(True))
 
     def move_limbs(self, joints: np.ndarray):
         for limb in self.limb_list:
@@ -233,6 +236,8 @@ class Simulator:
 
                 p.changeVisualShape(limb_pb, -1, rgbaColor=[0, 0, 0.9, 0.5])
             else:   # one limb joint is invalid
+                # TODO: Remove collision
+                # TODO: Add collision
                 p.changeVisualShape(limb_pb, -1, rgbaColor=[0, 0, 0, 0])
 
     def move_points(self, joints):
