@@ -91,6 +91,10 @@ class Simulator:
                 else:
                     raise ValueError(f"limbs: no connections between more then two joints: {limb}")
 
+        visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=0.3, rgbaColor=[255, 0, 0, 0.5])
+        collision_shape = p.createCollisionShape(p.GEOM_SPHERE, radius=0.3)
+        p.createMultiBody(baseVisualShapeIndex=visual_shape, baseCollisionShapeIndex=collision_shape, basePosition=[0.5, 0.5, 1])
+
         for body1 in self.limbs_pb.values():
             p.setCollisionFilterGroupMask(body1, -1, 1, 0)
 
@@ -182,7 +186,7 @@ class Simulator:
         self.step(joints)
 
     def step(self, joints: np.ndarray):
-        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, int(False))
+        #p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, int(False))
         joints = joints[:, [0, 2, 1]]   # adjust axis to fit pybullet axis
         if self.simulate_joints:
             self.move_points(joints)
@@ -191,7 +195,12 @@ class Simulator:
         if self.simulate_limbs:
             self.move_limbs(joints)
         p.stepSimulation()
-        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, int(True))
+        collisions = p.getContactPoints()
+        if len(collisions) > 0:
+            print("Collisions detected!")
+        else:
+            print("No collisions.")
+        #p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, int(True))
 
     def move_limbs(self, joints: np.ndarray):
         for limb in self.limb_list:
