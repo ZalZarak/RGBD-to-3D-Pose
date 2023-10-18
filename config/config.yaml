@@ -166,9 +166,9 @@ OpenPoseHandler:
   openpose_bin_path_win: "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/build2/bin"
   model_folder_win: "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/models"
 Simulator:
-  start_pybullet: true
-  playback: false
-  playback_file: "res/test_joints.pkl"
+  start_pybullet: false
+  playback: true
+  playback_file: "modular_drl_env/RGBDto3Dpose/res/hit_box_joints.pkl"
   playback_mode: 1
   simulate_limbs: True
   simulate_joints: False

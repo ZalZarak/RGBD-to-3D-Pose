@@ -1,6 +1,6 @@
 import yaml
 
-path = 'config/config.yaml'
+path = 'modular_drl_env/RGBDto3Dpose/config/config.yaml'
 
 # Load YAML data from a file
 with open(path, 'r') as yaml_file:
