@@ -46,6 +46,7 @@ class Simulator:
                 self.joint_list.append(j)
         self.joint_list = set(self.joint_list)
         self.debug_lines = []
+        self.joints = None
         self.joints_sync = joints_sync
         self.done_sync = done_sync
         self.ready_sync = ready_sync
@@ -183,6 +184,7 @@ class Simulator:
 
     def step(self, joints: np.ndarray):
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, int(False))
+        self.joints = joints
         joints = joints[:, [0, 2, 1]]   # adjust axis to fit pybullet axis
         if self.simulate_joints:
             self.move_points(joints)
@@ -191,7 +193,6 @@ class Simulator:
         if self.simulate_limbs:
             self.move_limbs(joints)
         p.stepSimulation()
-        collisions = p.getContactPoints()
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, int(True))
 
     def move_limbs(self, joints: np.ndarray):
