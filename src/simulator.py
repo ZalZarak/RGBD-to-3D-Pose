@@ -24,7 +24,7 @@ class Simulator:
                  simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool,
                  move_in_physic_sim: bool, min_distance_to_move_outside_physic_sim: float, time_delta_move_in_physic_sim: float,
                  joint_map: dict, limbs: list[tuple[str, str]], radii: dict, lengths: dict,
-                 as_subprocess=False, joints_sync=None, ready_sync=None, done_sync=None):
+                 as_subprocess=False, joints_sync=None, ready_sync=None, done_sync=None, new_joints_sync=None):
         self.playback = playback and not as_subprocess
         self.playback_file = playback_file
         self.playback_mode = playback_mode
@@ -50,16 +50,18 @@ class Simulator:
         self.joints_sync = joints_sync
         self.done_sync = done_sync
         self.ready_sync = ready_sync
+        self.new_joints_sync = new_joints_sync
 
         # start RGBDto3DPose
         if not as_subprocess and not playback:
             self.done_sync = mp.Value('b', False)
             self.ready_sync = mp.Event()
             self.joints_sync = mp.Array('f', np.zeros([25 * 3]))
+            self.new_joints_sync = mp.Event()
 
             from . import rgbd_to_3d_pose
             cl_process = mp.Process(target=rgbd_to_3d_pose.run_as_subprocess,
-                                    args=(simulate_limbs, simulate_joints, simulate_joint_connections, self.done_sync, self.ready_sync, self.joints_sync))
+                                    args=(simulate_limbs, simulate_joints, simulate_joint_connections, self.done_sync, self.ready_sync, self.joints_sync, self.new_joints_sync))
             cl_process.start()
 
         # Connect to the PyBullet physics server
@@ -123,6 +125,8 @@ class Simulator:
     def run_sync(self):
         try:
             while not self.done_sync.value:
+                self.new_joints_sync.wait()
+                self.new_joints_sync.clear()
                 self.process_frame_sync()
             p.disconnect()
         finally:
@@ -261,13 +265,14 @@ def run():
     sim.run()
 
 
-def run_as_subprocess(joints_sync, ready_sync, done_sync, simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool):
+def run_as_subprocess(joints_sync, ready_sync, done_sync, new_joints_sync, simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool):
     config_sim = config["Simulator"]
     config_sim["playback"] = False
     config_sim["as_subprocess"] = True
     config_sim["joints_sync"] = joints_sync
     config_sim["ready_sync"] = ready_sync
     config_sim["done_sync"] = done_sync
+    config_sim["new_joints_sync"] = new_joints_sync
     config_sim["simulate_limbs"] = simulate_limbs
     config_sim["simulate_joints"] = simulate_joints
     config_sim["simulate_joint_connections"] = simulate_joint_connections

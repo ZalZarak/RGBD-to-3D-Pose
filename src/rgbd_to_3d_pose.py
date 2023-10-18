@@ -29,7 +29,7 @@ class RGBDto3DPose:
                  joint_map: dict, connections_hr: list[tuple[str, str]], color_validation_joints_hr: list[str],
                  color_range: tuple[tuple[int, int, int], tuple[int, int, int]], lengths_hr: dict, depth_deviations_hr: dict,
                  search_areas_hr: dict,
-                 start_simulator=True, joints_sync=None, ready_sync=None, done_sync=None
+                 start_simulator=True, joints_sync=None, ready_sync=None, done_sync=None, new_joints_sync=None
                  ):
         """
         Main class to handle entire pipeline. Receives streams from Intel RealSense Depth Camera, pushes to OpenPose for Joint Positions,
@@ -163,6 +163,7 @@ class RGBDto3DPose:
         self.done_sync = done_sync if done_sync is not None else mp.Value('b', False) # to communicate with simulator if one process ended
         self.ready_sync = ready_sync                    # to communicate when process is done initializing
         self.joints_sync = joints_sync                  # to forward joints to simulator
+        self.new_joints_sync = new_joints_sync          # to communicate if there are new joint positions
 
         self.joints_save = []   # list to save time and 3D joints
         self.start_time = -1
@@ -279,9 +280,10 @@ class RGBDto3DPose:
             self.done_sync = mp.Value('b', False)
             self.ready_sync = mp.Event()
             self.joints_sync = mp.Array('f', np.zeros([25 * 3]))
+            self.new_joints_sync = mp.Event()
             simulator_process = mp.Process(target=simulator.run_as_subprocess,
-                                           args=(self.joints_sync, self.ready_sync, self.done_sync, self.simulate_limbs, self.simulate_joints,
-                                                 self.simulate_joint_connections))
+                                           args=(self.joints_sync, self.ready_sync, self.done_sync, self.new_joints_sync,
+                                                 self.simulate_limbs, self.simulate_joints, self.simulate_joint_connections))
             simulator_process.start()
             self.ready_sync.wait()   # wait until Simulator is ready
 
@@ -360,6 +362,7 @@ class RGBDto3DPose:
 
             if self.simulate:
                 self.joints_sync[:] = joints_3d.flatten()
+                self.new_joints_sync.set()
             if self.save_joints:
                 self.joints_save.append((time.time() - self.start_time, joints_3d))
         else:
@@ -556,7 +559,7 @@ def run():
     cl.run()
 
 
-def run_as_subprocess(simulate_limbs, simulate_joints, simulate_joint_connections, done_sync, ready_sync, joints_sync):
+def run_as_subprocess(simulate_limbs, simulate_joints, simulate_joint_connections, done_sync, ready_sync, joints_sync, new_joints_sync):
     config_RGBDto3DPose = config["RGBDto3DPose"]
     config_RGBDto3DPose["playback"] = False
     config_RGBDto3DPose["simulate_limbs"] = simulate_limbs
@@ -566,6 +569,7 @@ def run_as_subprocess(simulate_limbs, simulate_joints, simulate_joint_connection
     config_RGBDto3DPose["joints_sync"] = joints_sync
     config_RGBDto3DPose["ready_sync"] = ready_sync
     config_RGBDto3DPose["done_sync"] = done_sync
+    config_RGBDto3DPose["new_joints_sync"] = new_joints_sync
 
     cl = RGBDto3DPose(**config_RGBDto3DPose)
     cl.run()

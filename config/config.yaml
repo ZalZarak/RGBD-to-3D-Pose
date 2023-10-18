@@ -167,7 +167,7 @@ OpenPoseHandler:
   model_folder_win: "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/models"
 Simulator:
   start_pybullet: true
-  playback: true
+  playback: false
   playback_file: "res/test_joints.pkl"
   playback_mode: 1
   simulate_limbs: True
