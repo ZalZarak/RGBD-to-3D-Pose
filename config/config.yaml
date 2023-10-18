@@ -1,7 +1,7 @@
 run_from: 0   # RGBDto3DPose: 0, Simulator: 1, Debug: 2
 RGBDto3DPose:
   playback: false
-  playback_file: "test.bag"
+  playback_file: res/test.bag
   duration: -1
   countdown: -1
   # saving
@@ -168,7 +168,7 @@ OpenPoseHandler:
 Simulator:
   start_pybullet: true
   playback: true
-  playback_file: test_joints.pkl
+  playback_file: "res/test_joints.pkl"
   playback_mode: 1
   simulate_limbs: True
   simulate_joints: False

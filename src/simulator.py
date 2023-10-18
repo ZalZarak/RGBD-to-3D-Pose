@@ -7,7 +7,7 @@ import pybullet as p
 
 import multiprocessing as mp
 
-from config import config
+from src.config import config
 
 
 default_direction = np.array([0, 0, 1])
@@ -57,7 +57,7 @@ class Simulator:
             self.ready_sync = mp.Event()
             self.joints_sync = mp.Array('f', np.zeros([25 * 3]))
 
-            import rgbd_to_3d_pose
+            from . import rgbd_to_3d_pose
             cl_process = mp.Process(target=rgbd_to_3d_pose.run_as_subprocess,
                                     args=(simulate_limbs, simulate_joints, simulate_joint_connections, self.done_sync, self.ready_sync, self.joints_sync))
             cl_process.start()
@@ -147,16 +147,9 @@ class Simulator:
             print(f"fps: {c / (time.time() - start)}")
         elif self.playback_mode == 1:
             start = time.time()
-            i = 0
             try:
                 while True:
-                    t, joints = self.frames[i]
-                    i += 1
-                    while t < time.time() - start:
-                        # t, joints = frames.pop()
-                        t, joints = self.frames[i]
-                        i += 1
-                    self.step(joints)
+                    self.process_frame_at_time(time.time()-start)
             except IndexError:
                 pass
         elif self.playback_mode == 2:
@@ -194,6 +187,7 @@ class Simulator:
             self.move_limbs(joints)
         p.stepSimulation()
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, int(True))
+        time.sleep(0.001)
 
     def move_limbs(self, joints: np.ndarray):
         for limb in self.limb_list:

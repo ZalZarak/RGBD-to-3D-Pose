@@ -1,7 +1,5 @@
-import debug
-from config import config
-import rgbd_to_3d_pose
-import simulator
+from src import debug, rgbd_to_3d_pose, simulator
+from src.config import config
 
 if __name__ == '__main__':
     if config["run_from"] == 0:

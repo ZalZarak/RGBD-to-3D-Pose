@@ -7,12 +7,11 @@ import numpy as np
 import pyrealsense2 as rs
 from math import sin, cos
 
-import helper
-from config import config
-from openpose_handler import OpenPoseHandler
-import simulator
-
 import multiprocessing as mp
+
+from src import helper, simulator
+from src.config import config
+from src.openpose_handler import OpenPoseHandler
 
 
 class RGBDto3DPose:

@@ -9,9 +9,9 @@ import statistics
 import pandas as pd
 import pyrealsense2 as rs
 
-import helper
-from rgbd_to_3d_pose import RGBDto3DPose
-from config import config
+from src import helper
+from src.rgbd_to_3d_pose import RGBDto3DPose
+from src.config import config
 
 color_ranges = {
     "upper blue": config["RGBDto3DPose"]["color_range"][1][0],
