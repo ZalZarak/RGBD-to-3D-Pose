@@ -1,4 +1,4 @@
-run_from: 0   # RGBDto3DPose: 0, Simulator: 1, Debug: 2
+run_from: 1   # RGBDto3DPose: 0, Simulator: 1, Debug: 2
 RGBDto3DPose:
   playback: false
   playback_file: res/test.bag
@@ -167,7 +167,7 @@ OpenPoseHandler:
   model_folder_win: "C:/Users/PK/Documents/Uni/Semester 8/BA/openpose/models"
 Simulator:
   start_pybullet: true
-  playback: false
+  playback: true
   playback_file: "res/test_joints.pkl"
   playback_mode: 1
   simulate_limbs: True
