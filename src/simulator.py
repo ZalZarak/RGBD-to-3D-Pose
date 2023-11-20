@@ -35,6 +35,8 @@ class Simulator:
         self.min_distance_to_move_outside_physic_sim = min_distance_to_move_outside_physic_sim
         self.time_delta = time_delta_move_in_physic_sim
         self.limb_list = []
+        self.limb_list_valid = []
+        self.limb_list_invalid = []
         for i in limbs:
             l = []
             for j in i:
@@ -73,8 +75,8 @@ class Simulator:
         p.resetDebugVisualizerCamera(cameraDistance=2.5, cameraYaw=0, cameraPitch=-10,
                                      cameraTargetPosition=[0, 0, 0])
 
+        self.limbs_pb = {}
         if simulate_limbs:
-            self.limbs_pb = {}
             # pregenerate geometry
             n = 1
             for limb in limbs:
@@ -194,9 +196,11 @@ class Simulator:
         time.sleep(0.001)
 
     def move_limbs(self, joints: np.ndarray):
+        self.limb_list_valid, self.limb_list_invalid = [], []
         for limb in self.limb_list:
             limb_pb = self.limbs_pb[limb]
             if all([is_joint_valid(joints[l]) for l in limb]):  # if all limb joints are valid
+                self.limb_list_valid.append(limb)
                 p.setCollisionFilterGroupMask(limb_pb, -1, 1, 0)
                 if len(limb) == 1:  # if it's a sphere
                     midpoint = joints[limb[0]]
@@ -237,6 +241,7 @@ class Simulator:
 
                 p.changeVisualShape(limb_pb, -1, rgbaColor=[0, 0, 0.9, 0.5])
             else:   # one limb joint is invalid
+                self.limb_list_invalid.append(limb)
                 p.changeVisualShape(limb_pb, -1, rgbaColor=[0, 0, 0, 0])
                 p.setCollisionFilterGroupMask(limb_pb, -1, 0, 0)
 

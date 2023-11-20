@@ -1,6 +1,6 @@
-run_from: 1   # RGBDto3DPose: 0, Simulator: 1, Debug: 2
+run_from: 0   # RGBDto3DPose: 0, Simulator: 1, Debug: 2
 RGBDto3DPose:
-  playback: false
+  playback: true
   playback_file: res/test.bag
   duration: -1
   countdown: -1
@@ -20,7 +20,7 @@ RGBDto3DPose:
   # camera
   resolution: [480, 270]
   fps: 30
-  flip: 0
+  flip: 1
   translation: [0, 1, 0]
   rotation: [0, 0, 0]
   # depth_settings
@@ -249,7 +249,7 @@ Simulator:
     RAnkle-RBigToe: 0.15
     LAnkle-LBigToe: 0.15
 Debug:
-  mode: 2   # 0: color mask, 1: search area, 2: length
+  mode: 1   # 0: color mask, 1: search area, 2: length
   length_args:
     mode: 0   # 0: length, 1: depth
     output_filename: null
