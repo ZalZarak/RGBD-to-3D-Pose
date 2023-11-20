@@ -183,8 +183,8 @@ class Simulator:
 
     def step(self, joints: np.ndarray):
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, int(False))
-        self.joints = joints.copy()
         joints = joints[:, [0, 2, 1]]   # adjust axis to fit pybullet axis
+        self.joints = joints.copy()
         if self.simulate_joints:
             self.move_points(joints)
         if self.simulate_joint_connections:
