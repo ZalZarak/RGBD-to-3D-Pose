@@ -185,7 +185,6 @@ class Simulator:
             _, joints = self.frames[i]
             self.step(joints)
             self.last_frame = i
-            print(f"Frame: {i}")
 
     def step(self, joints: np.ndarray):
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, int(False))
