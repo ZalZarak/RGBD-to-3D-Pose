@@ -175,11 +175,17 @@ class Simulator:
             raise ValueError("Mode: 0, 1 or 2")
         p.disconnect()
 
+    last_frame = -1
     def process_frame_at_time(self, t: float):
         t = t % self.frames[-1][0]  # make it a loop
         i = bisect_left(self.frames, t, key=lambda j: j[0])
-        _, joints = self.frames[i]
-        self.step(joints)
+
+        # don't move if the frame is the same
+        if self.last_frame != i:
+            _, joints = self.frames[i]
+            self.step(joints)
+            self.last_frame = i
+            print(f"Frame: {i}")
 
     def step(self, joints: np.ndarray):
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, int(False))
@@ -192,6 +198,12 @@ class Simulator:
         if self.simulate_limbs:
             self.move_limbs(joints)
         p.stepSimulation()
+
+        # Reset limb velocities to 0 prevent them from moving with potential additional simulation steps.
+        if self.simulate_limbs:
+            for limb_pb in self.limbs_pb.values():
+                p.resetBaseVelocity(limb_pb, linearVelocity=[0, 0, 0], angularVelocity=[0, 0, 0])
+
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, int(True))
         time.sleep(0.001)
 
