@@ -57,6 +57,29 @@ class RGBDto3DPose:
         :param simulate_limbs: Simulate limbs.
         :param simulate_joints: Simulate joints.
         :param simulate_joint_connections: Simulate connections between joints.
+        :param visual_preset: Preset for the visual appearance of the depth stream.
+        :param exposure: Camera exposure settings.
+        :param gain: Camera gain settings.
+        :param laser_power: Power of the camera's laser for depth sensing.
+        :param depth_units: Units for depth measurement.
+        :param decimation_filter: Whether to apply a decimation filter.
+        :param depth2disparity: Convert depth to disparity.
+        :param spatial_filter: Apply a spatial filter.
+        :param temporal_filter: Apply a temporal filter.
+        :param disparity2depth: Convert disparity back to depth.
+        :param hole_filling_filter: Level of hole filling filter to apply.
+        :param joint_map: Maps joint names to openpose indices.
+        :param connections_hr: List of connections between joints with their names (human-readable)
+        :param color_validation_joints_hr: List of connections to validate with color-range (human-readable)
+        :param color_range: Color range to validate joints
+        :param lengths_hr: Accepted length ranges for each connection
+        :param depth_deviations_hr: Accepted maximum depth (z-coordinate) deviations for each connection
+        :param search_areas_hr: Define the search area where a valid depth is searched for invalid joints for each joint. Format: [deviation, skip] in pixels.
+        :param start_simulator: If Simulator should start as separate process from here. Otherwise, Simulator should start a RGBDto3DPose process.
+        :param joints_sync: If this is a subprocess, to exchange joints with Simulator, else None. mp.Array('f', np.zeros([25 * 3])), filled out automatically by Simulator
+        :param ready_sync: If this is a subprocess, to communicate with Simulator when process is ready, else None. mp.Event, filled out automatically by Simulator
+        :param done_sync: If this is a subprocess, to communicate with Simulator when process has finished, else None. mp.Event, filled out automatically by Simulator
+        :param new_joints_sync: If this is a subprocess, to communicate with Simulator if there are new joints, else None mp.Event, filled out automatically by Simulator
         """
 
         self.playback = playback
@@ -105,24 +128,24 @@ class RGBDto3DPose:
         self.use_openpose = save_joints or show_joints
         self.colorizer = rs.colorizer()  # create colorizer object
 
-        # inverse_flip translates pixels from flipped image space to camera space
-        # flip_3d_coord switches and mirrors dimension to adjust 3D coordinate from camera space to real space (x->right, y->up, z->back)
+        # real_to_camera_space_2d translates pixels from flipped real space to camera space. Real space is given by flip parameter.
+        # camera_to_real_space_3d switches and mirrors dimension to adjust 3D coordinate from camera space to real space (x->right, y->up, z->back)
         # flip_rev is the reverse of flip
         if flip in [-4, 0, 4]:  # no rotation
-            self.inverse_flip = lambda p: np.array([round(p[0]), round(p[1])])  # (round(x), round(y))
-            self.flip_3d_coord = lambda c: (c[0], -c[1], c[2])
+            self.real_to_camera_space_2d = lambda p: np.array([round(p[0]), round(p[1])])  # (round(x), round(y))
+            self.camera_to_real_space_3d = lambda c: (c[0], -c[1], c[2])
             self.flip_rev = 0
         elif flip in [-3, 1]:  # left rotation
-            self.inverse_flip = lambda p: np.array([resolution[0] - round(p[1]), round(p[0])])  # (resolution[0] - round(y), round(x))
-            self.flip_3d_coord = lambda c: (c[1], c[0], c[2])
+            self.real_to_camera_space_2d = lambda p: np.array([resolution[0] - round(p[1]), round(p[0])])  # (resolution[0] - round(y), round(x))
+            self.camera_to_real_space_3d = lambda c: (c[1], c[0], c[2])
             self.flip_rev = -1
         elif flip in [-2, 2]:  # 180° rotation
-            self.inverse_flip = lambda p: np.array([resolution[0] - round(p[0]), resolution[1] - round(p[1])])  # (resolution[0] - round(x), resolution[1] - round(y))
-            self.flip_3d_coord = lambda c: (-c[0], c[1], c[2])
+            self.real_to_camera_space_2d = lambda p: np.array([resolution[0] - round(p[0]), resolution[1] - round(p[1])])  # (resolution[0] - round(x), resolution[1] - round(y))
+            self.camera_to_real_space_3d = lambda c: (-c[0], c[1], c[2])
             self.flip_rev = 2
         elif flip in [-1, 3]:  # right rotation
-            self.inverse_flip = lambda p: np.array([round(p[1]), resolution[1] - round(p[0])])  # (round(y), resolution[1] - round(x))
-            self.flip_3d_coord = lambda c: (-c[1], -c[0], c[2])
+            self.real_to_camera_space_2d = lambda p: np.array([round(p[1]), resolution[1] - round(p[0])])  # (round(y), resolution[1] - round(x))
+            self.camera_to_real_space_3d = lambda c: (-c[1], -c[0], c[2])
             self.flip_rev = 1
         else:
             raise ValueError("Rotation should be in range [-4, 4]")
@@ -160,7 +183,7 @@ class RGBDto3DPose:
         self.simulate_joint_connections = simulate_joint_connections
 
         self.start_simulator = start_simulator          # if True and simulate, this will start Simulator, if false and simulate, Simulator will start this
-        self.done_sync = done_sync if done_sync is not None else mp.Value('b', False) # to communicate with simulator if one process ended
+        self.done_sync = done_sync if done_sync is not None else mp.Value('b', False)  # to communicate with simulator if one process ended
         self.ready_sync = ready_sync                    # to communicate when process is done initializing
         self.joints_sync = joints_sync                  # to forward joints to simulator
         self.new_joints_sync = new_joints_sync          # to communicate if there are new joint positions
@@ -206,7 +229,6 @@ class RGBDto3DPose:
             if joint_map[k1] >= joint_map[k2]:
                 raise ValueError(f"depth_deviations_hr: for all keys 'j1-j2': joint_map[j1] < joint_map[j2], but joint_map[{k1}] >= joint_map[{k2}]")
 
-
         self.joint_map = joint_map
         self.connections_hr = connections_hr
         self.color_validation_joints_hr = color_validation_joints_hr
@@ -233,6 +255,7 @@ class RGBDto3DPose:
         for k, v in search_areas_hr.items():
             self.search_areas[joint_map[k]] = helper.generate_base_search_area(v[0], v[1])
 
+        # TODO: set?
         self.connections_dict = {k: [] for k in range(26)}
         for a, b in self.connections:
             self.connections_dict[a].append(b)
@@ -247,7 +270,7 @@ class RGBDto3DPose:
         :return: None
         """
 
-        print("Use ESC to terminate, otherwise no files will be saved.")
+        print("Use ESC to terminate, otherwise files might not be saved.")
 
         self.prepare()  # prepare everything needed
 
@@ -277,10 +300,12 @@ class RGBDto3DPose:
 
         # start Simulator
         if self.simulate and self.start_simulator:
+            # create variables to exchange data with Simulator subprocess.
             self.done_sync = mp.Value('b', False)
             self.ready_sync = mp.Event()
             self.joints_sync = mp.Array('f', np.zeros([25 * 3]))
             self.new_joints_sync = mp.Event()
+            # create and start Simulator subprocess
             simulator_process = mp.Process(target=simulator.run_as_subprocess,
                                            args=(self.joints_sync, self.ready_sync, self.done_sync, self.new_joints_sync,
                                                  self.simulate_limbs, self.simulate_joints, self.simulate_joint_connections))
@@ -293,20 +318,20 @@ class RGBDto3DPose:
 
         # Initialize the RealSense pipeline
         pipeline = rs.pipeline()
-        config = rs.config()
+        rs_config = rs.config()
 
         if self.playback:
             # configure for playback from file.
-            rs.config.enable_device_from_file(config, file_name=self.playback_file)
+            rs.config.enable_device_from_file(rs_config, file_name=self.playback_file)
 
         # Enable both depth and color streams
-        config.enable_stream(rs.stream.depth, self.resolution[0], self.resolution[1], rs.format.z16, self.fps)
-        config.enable_stream(rs.stream.color, self.resolution[0], self.resolution[1], rs.format.bgr8, self.fps)
+        rs_config.enable_stream(rs.stream.depth, self.resolution[0], self.resolution[1], rs.format.z16, self.fps)
+        rs_config.enable_stream(rs.stream.color, self.resolution[0], self.resolution[1], rs.format.bgr8, self.fps)
 
         if self.save_bag:
             # setup to record to file
-            config.enable_record_to_file(self.filename_bag)
-            pipeline_profile = pipeline.start(config)   # start pipeline
+            rs_config.enable_record_to_file(self.filename_bag)
+            pipeline_profile = pipeline.start(rs_config)   # start pipeline
             device = pipeline_profile.get_device()
             recorder = device.as_recorder()
             rs.recorder.pause(recorder)
@@ -315,7 +340,7 @@ class RGBDto3DPose:
         else:
             if self.countdown > 0:
                 helper.print_countdown(self.countdown)
-            pipeline_profile = pipeline.start(config)   # start pipeline
+            pipeline_profile = pipeline.start(rs_config)   # start pipeline
 
         self.intrinsics = pipeline_profile.get_stream(rs.stream.depth).as_video_stream_profile().get_intrinsics()
 
@@ -333,6 +358,7 @@ class RGBDto3DPose:
         self.pipeline = pipeline
 
         if self.simulate and not self.start_simulator:
+            # communicate that process is ready to simulator if this is subprocess
             self.ready_sync.set()
 
     def process_frame(self):
@@ -342,7 +368,8 @@ class RGBDto3DPose:
         :return: None
         """
 
-        color_frame, color_image, depth_frame, depth_image = self.get_frames()
+        # get frames, images and time
+        color_frame, color_image, depth_frame, depth_image, t = self.get_frames()
 
         if self.use_openpose:
             # get joints from OpenPose assuming there is only one person
@@ -353,18 +380,19 @@ class RGBDto3DPose:
             if self.show_depth:
                 helper.show("Depth-Stream", depth_image, joints_2d if self.show_joints else None, self.connections)
 
-            joints_2d_camera_space = np.apply_along_axis(self.inverse_flip, 1, joints_2d)    # translate from image space to camera space
+            joints_2d_camera_space = np.apply_along_axis(self.real_to_camera_space_2d, 1, joints_2d)    # translate from image space to camera space
             color_image_camera_space = np.rot90(color_image, k=self.flip_rev)  # rotate color_image back to camera space
 
-            joints_3d = self.get_3d_joints(joints_2d_camera_space, confidences, depth_frame, color_image_camera_space)
-            joints_3d = np.apply_along_axis(self.flip_3d_coord, 1, joints_3d)     # flip the coordinates into the right perspective
+            joints_3d = self.get_3d_joints(joints_2d_camera_space, confidences, depth_frame, color_image_camera_space)  # retrieve 3d coordinates for joints
+            joints_3d = np.apply_along_axis(self.camera_to_real_space_3d, 1, joints_3d)     # flip the coordinates into the right perspective
             joints_3d = np.apply_along_axis(self.transform, 1, joints_3d)         # apply translation/rotation
 
             if self.simulate:
+                # set sync joints and new joints flag for Simulator
                 self.joints_sync[:] = joints_3d.flatten()
                 self.new_joints_sync.set()
             if self.save_joints:
-                self.joints_save.append((time.time() - self.start_time, joints_3d))
+                self.joints_save.append((t - self.start_time, joints_3d))
         else:
             if self.show_rgb:
                 helper.show("RGB-Stream", color_image)
@@ -373,19 +401,22 @@ class RGBDto3DPose:
         if self.show_color_mask:
             helper.show_mask("Color-Mask-Stream", color_image, self.color_range)
 
-    def get_frames(self) -> tuple[any, np.ndarray, any, np.ndarray]:
+    def get_frames(self) -> tuple[any, np.ndarray, any, np.ndarray, float]:
         """
         Get color_frame, color_image, depth_frame, depth_image from pipeline
 
-        :return: color_frame, color_image, depth_frame, depth_image
+        :return: color_frame, color_image, depth_frame, depth_image, time
         """
 
         # Wait for the next set of frames from the camera
         frames = self.pipeline.wait_for_frames()
+        t = time.time()     # save the time the frames were received at
         frames = self.align.process(frames)
 
         # Get depth frame
         depth_frame = frames.get_depth_frame()
+
+        # apply filters as defined
         depth_frame = self.decimation_filter.process(depth_frame)
         depth_frame = self.depth2disparity.process(depth_frame)
         depth_frame = self.spatial_filter.process(depth_frame)
@@ -399,21 +430,21 @@ class RGBDto3DPose:
 
         depth_frame = depth_frame.as_depth_frame()
 
-        # Convert depth_frame to numpy array to render image in opencv
+        # Convert frames to numpy array to render image in opencv
         depth_image = np.asanyarray(depth_color_frame.get_data())
         color_image = np.asanyarray(color_frame.get_data())
 
-        # flip to "normal" space
+        # flip to real space
         depth_image = np.rot90(depth_image, k=self.flip)
         color_image = np.rot90(color_image, k=self.flip)
 
-        return color_frame, color_image, depth_frame, depth_image
+        return color_frame, color_image, depth_frame, depth_image, t
 
     def get_3d_joints(self, joints_2d: np.ndarray, confidences: np.ndarray, depth_frame, color_image: np.ndarray) -> np.ndarray:
         """
-        Get 3D coordinates of joints from their pixel and depth. Validate them through at least one connection by length and depth (as defined).
-        Attempt correction of unvalidated joints by searching in the area around as defined for valid color (for certain defined joints) and
-        for valid depth, so that at least one connection validates by length and depth.
+        Get 3D coordinates of joints from their pixel and depth. Validate them through at least one connection by length and depth or color (as defined).
+        Attempt correction of unvalidated joints by searching in the area around as defined for valid color (for certain defined joints) or
+        for valid length and depth, so that at least one connection validates.
 
         :param joints_2d: 2d joints in camera space
         :param confidences: confidences of those joints
@@ -423,9 +454,17 @@ class RGBDto3DPose:
         """
 
         def validate_joint(connection: tuple[int, int]) -> bool:
+            """
+            Validate the connection by length and depth as defined. The joint coordinates from val_joints are used.
+            :param connection: Connection to validate
+            :return: True/False
+            """
+
+            # If one joint has no depth, it was not detected correctly
             if val_joints[connection[0], 2] == 0 or val_joints[connection[1], 2] == 0:
                 return False
 
+            # retrieve accepted bounds for length and depth
             l_min, l_max = self.lengths[connection]
             deviation = self.depth_deviations[connection]
 
@@ -433,15 +472,15 @@ class RGBDto3DPose:
                    and
                    (deviation < 0 or abs(val_joints[connection[0], 2] - val_joints[connection[1], 2]) <= deviation))  # depth validation
 
-        joints_3d = np.zeros([joints_2d.shape[0], 3])
+        joints_3d = np.zeros([joints_2d.shape[0], 3])   # TODO: Replace joints_3d with val_joints
         # get 3d coordinates for all joints
         for i, (x, y) in enumerate(joints_2d):
             try:
                 depth = depth_frame.get_distance(x, y)
                 if depth > 0:
-                    # get 3d coordinates and reorder them from y,x,z to x,y,z
+                    # get 3d coordinates
                     joints_3d[i] = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x, y), depth=depth)
-                else:
+                else:   # error in reading depth
                     joints_3d[i] = 0
             except RuntimeError:  # joint outside of picture
                 pass
@@ -449,9 +488,9 @@ class RGBDto3DPose:
         val = np.zeros(25, dtype="bool")
         val_joints = np.copy(joints_3d)
 
-        # If depth is wrong, then the length of limbs should be incorrect or the depth deviation is too high
-        # The body should have correct length
-        # for some connections also the same depth
+        # Problem: Joints might be occluded, then 3d joint would be wrong
+        # Idea: If 3d coordinate is wrong, then it's likely that the length of limbs should be incorrect or the depth deviation too high
+        # If a color within the color range is detected where the joint is, it can be assumed that nothing occludes it, so that the 3d coordinate is correct.
 
         # validate each joint through at least one connection which is valid by length and depth
         for connection in self.connections:
@@ -466,12 +505,12 @@ class RGBDto3DPose:
         # make sure to have very precise color range, e.g. detected pixels not belonging to corresponding limbs should be nearly zero
         for color_joint in self.color_validation_joints:     # iterate through corresponding, unvalidated joints
             if not val[color_joint]:
-                # flip the current pixel to camera coordinate system
+                # get the pixel of the current joint
                 x, y = joints_2d[color_joint, 0], joints_2d[color_joint, 1]
                 # generate search pixels around joint
                 for x_search, y_search in helper.generate_search_pixels((x, y), color_joint, self.search_areas, self.resolution):
                     color = color_image[y_search, x_search]
-                    if all(np.greater_equal(self.color_range[1], color)) and all(np.greater_equal(color, self.color_range[0])):
+                    if all(np.greater_equal(self.color_range[1], color)) and all(np.greater_equal(color, self.color_range[0])):  # if in color range
                         try:
                             depth = depth_frame.get_distance(x_search, y_search)    # get the depth at this pixel
                             if depth > 0:
@@ -492,7 +531,7 @@ class RGBDto3DPose:
             for i in range(25):
                 # if joint is detected but not validated try to correct depth
                 if not val[i]:
-                    # flip the current pixel to camera coordinate system
+                    # get the pixel of the current joint
                     x, y = joints_2d[i, 0], joints_2d[i, 1]
                     # generate search pixels around joint
                     for x_search, y_search in helper.generate_search_pixels((x, y), i, self.search_areas, self.resolution):    # for each pixel in search area
@@ -523,6 +562,7 @@ class RGBDto3DPose:
             if not val[i]:
                 val_joints[i] = 0
 
+        # TODO: make optional, or better: in Simulator
         # reduce head to nose
         if all(val_joints[0] == 0):  # nose not detected
             if val_joints[15, 2] != 0 and val_joints[16, 2] != 0:  # both eyes validated
@@ -555,11 +595,29 @@ class RGBDto3DPose:
 
 
 def run():
+    """
+    Create RGBDto3DPose instance with defined config and run it.
+    :return: None
+    """
+
     cl = RGBDto3DPose(**config["RGBDto3DPose"])
     cl.run()
 
 
 def run_as_subprocess(simulate_limbs, simulate_joints, simulate_joint_connections, done_sync, ready_sync, joints_sync, new_joints_sync):
+    """
+    Create RGBDto3DPose instance with defined config and run as subprocess of Simulator.
+
+    :param simulate_limbs: If limbs are simulated
+    :param simulate_joints: If joints are simulated
+    :param simulate_joint_connections: If connections are simulated
+    :param done_sync: Synchronized process is done flag, mp.Event
+    :param ready_sync: Synchronized process is ready flag, mp.Event
+    :param joints_sync: Synchronized joints, mp.Array('f', np.zeros([25 * 3]))
+    :param new_joints_sync: Synchronized flag if there are new joints, mp.Event
+    :return: None
+    """
+
     config_RGBDto3DPose = config["RGBDto3DPose"]
     config_RGBDto3DPose["playback"] = False
     config_RGBDto3DPose["simulate_limbs"] = simulate_limbs
