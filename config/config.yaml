@@ -1,4 +1,4 @@
-run_from: 0   # RGBDto3DPose: 0, Simulator: 1, Debug: 2
+run_from: 1   # RGBDto3DPose: 0, Simulator: 1, Debug: 2
 RGBDto3DPose:
   playback: true
   playback_file: res/test.bag
@@ -177,7 +177,7 @@ Simulator:
   playback: true
   playback_file: "res/test_joints.pkl"
   playback_mode: 1
-  frame_duration: 0.1
+  frame_duration: 0.05
   simulate_limbs: True
   simulate_joints: False
   simulate_joint_connections: False

@@ -204,7 +204,7 @@ class Simulator:
             for _, joints in self.frames:
                 self.step(joints)
                 c += 1
-            time.sleep(self.frame_duration)
+                time.sleep(self.frame_duration)
             print(f"fps: {c / (time.time() - start)}")
         elif self.playback_mode == 1:
             start = time.time()

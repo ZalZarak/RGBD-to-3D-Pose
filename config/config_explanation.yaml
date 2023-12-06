@@ -226,7 +226,7 @@ Simulator:
   # 2: Step-by-step, press any key to simulate next frame, "q" to quit.
   playback_mode: 1
   # Duration for each frame. Applies only for normal playback mode.
-  frame_duration: 0.1
+  frame_duration: 0.05
   # If limbs should be simulated.
   simulate_limbs: True
   # If joints should be simulated.
