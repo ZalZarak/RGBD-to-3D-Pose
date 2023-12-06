@@ -41,24 +41,18 @@ except ImportError as e:
 
 
 class OpenPoseHandler:
-    op_wrapper: any
-    poseModel = op.PoseModel.BODY_25
-    mapping = op.getPoseBodyPartMapping(poseModel)
-    reverse_mapping = {v: k for k, v in op.getPoseBodyPartMapping(poseModel).items()}
+    def __init__(self, params: dict = None):
+        """
+        Configures and starts OpenPose-Wrapper.
 
-    def __init__(self):
-        # Custom Params (refer to include/openpose/flags.hpp for more parameters)
-        # all parameters defined here: https://github.com/CMU-Perceptual-Computing-Lab/openpose/blob/master/doc/advanced/demo_advanced.md
-        params = {
-            "image_dir": None,   # With this flag openpose accepts custom input in jpg/png/... format. Image dir is not used
-            "model_folder": model_folder,
-            # "hand": True,
-            "process_real_time": True,
-            "number_people_max": 1,
-            # "net_resolution": "-1x736"    # Multiples of 16. If it is increased, the accuracy potentially increases. If it is decreased, the speed increases. For maximum speed-accuracy balance, it should keep the closest aspect ratio possible to the images or videos to be processed. Using -1 in any of the dimensions, OP will choose the optimal aspect ratio depending on the user's input value.
-            # "hand_net_resolution": "240x240",
-            "render_pose": 1
-        }
+        :param params: OpenPose parameter. If None, takes parameters defined in config.py.
+        Visit https://github.com/CMU-Perceptual-Computing-Lab/openpose/blob/master/doc/advanced/demo_advanced.md for full list of parameters.
+        """
+
+        if params is None:
+            params = op_config["params"]
+        params["image_dir"] = None  # With this flag openpose accepts custom input in jpg/png/... format. Image dir is not used
+        params["model_folder"] = model_folder
 
         # Starting OpenPose
         op_wrapper = op.WrapperPython()
@@ -68,14 +62,25 @@ class OpenPoseHandler:
         self.op_wrapper = op_wrapper
 
     def push_frame(self, frame: np.ndarray) -> tuple[np.ndarray, np.ndarray, any]:
+        """
+        Pushes the frame to OpenPose.
+
+        :param frame: a raw color image
+        :return: Pixels of joints (np.ndarray([25, 2]), confidences ([np.ndarray([25, 1]), image with drawn joints and connections
+        """
+
+        # Transform raw frame to png because OpenPose cannot work with raw images.
         _, encoded_image = cv2.imencode('.png', frame)
         frame = cv2.imdecode(encoded_image, 1)
 
+        # Push png frame to openpose
         datum = op.Datum()
         datum.cvInputData = frame
         self.op_wrapper.emplaceAndPop(op.VectorDatum([datum]))
 
         if datum.poseKeypoints is not None:
+            # return result if success
             return datum.poseKeypoints[0, :, :2], datum.poseKeypoints[0, :, 2], datum.cvOutputData
         else:
+            # return default values if no success
             return np.zeros([25, 2]), np.zeros([25, 1]), datum.cvOutputData

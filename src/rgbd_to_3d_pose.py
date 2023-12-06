@@ -15,8 +15,6 @@ from src.openpose_handler import OpenPoseHandler
 
 
 class RGBDto3DPose:
-    count = 0
-
     def __init__(self, playback: bool, duration: float, playback_file: str | None,
                  resolution: tuple[int, int], fps: int, flip: int, countdown: int,
                  translation: (float, float, float), rotation: (float, float, float),
@@ -611,8 +609,8 @@ def run_as_subprocess(simulate_limbs, simulate_joints, simulate_joint_connection
     :param simulate_limbs: If limbs are simulated
     :param simulate_joints: If joints are simulated
     :param simulate_joint_connections: If connections are simulated
-    :param done_sync: Synchronized process is done flag, mp.Event
-    :param ready_sync: Synchronized process is ready flag, mp.Event
+    :param done_sync: Synchronized is done flag, mp.Event
+    :param ready_sync: Synchronized is ready flag, mp.Event
     :param joints_sync: Synchronized joints, mp.Array('f', np.zeros([25 * 3]))
     :param new_joints_sync: Synchronized flag if there are new joints, mp.Event
     :return: None
