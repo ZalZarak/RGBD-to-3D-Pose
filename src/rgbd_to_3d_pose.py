@@ -30,7 +30,7 @@ class RGBDto3DPose:
                  start_simulator=True, joints_sync=None, ready_sync=None, done_sync=None, new_joints_sync=None
                  ):
         """
-        Main class to handle entire pipeline. Receives streams from Intel RealSense Depth Camera, pushes to OpenPose for Joint Positions,
+        Receives streams from Intel RealSense Depth Camera or a playback file, pushes to OpenPose for Joint Positions,
         extracts 3D coordinates, validates and corrects them through different techniques. Starts Simulator as separate process and pushes
         3D coordinates of Joints to simulator.
 
@@ -594,7 +594,7 @@ class RGBDto3DPose:
 
 def run():
     """
-    Create RGBDto3DPose instance with defined config and run it.
+    Create RGBDto3DPose instance with defined config and run it as main process.
     :return: None
     """
 
@@ -604,7 +604,7 @@ def run():
 
 def run_as_subprocess(simulate_limbs, simulate_joints, simulate_joint_connections, done_sync, ready_sync, joints_sync, new_joints_sync):
     """
-    Create RGBDto3DPose instance with defined config and run as subprocess of Simulator.
+    Create RGBDto3DPose instance with defined config and as subprocess of Simulator.
 
     :param simulate_limbs: If limbs are simulated
     :param simulate_joints: If joints are simulated
