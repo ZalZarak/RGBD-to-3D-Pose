@@ -1,42 +1,78 @@
-run_from: 0   # RGBDto3DPose: 0, Simulator: 1, Debug: 2
+# RGBDto3DPose: 0, Simulator: 1, Debug: 2
+run_from: 0
 RGBDto3DPose:
+  # If playback from a recorded bag instead of streaming from the camera.
   playback: true
+  # File to playback from. Ignored if playback == False.
   playback_file: res/test.bag
+  # How long to stream or playback, in seconds. Use -1 or float('inf') to not stop automatically after a certain period.
   duration: -1
+  # Countdown until start of stream/playback, in seconds.
   countdown: -1
   # saving
+  # Prefix for saved files.
   savefile_prefix: null
+  # If 3D joints and the time they were received should be saved under savefile_prefix + "_joints.pkl".
   save_joints: false
+  # If a bag of the color and depth stream should be saved under savefile_prefix + ".bag". Attention: No compression -> big files.
   save_bag: false
   # show
+  # Show RGB-Stream.
   show_rgb: true
+  # Show Depth-Stream.
   show_depth: true
+  # Show joints and connections in both the RGB-Stream and the Depth-Stream.
   show_joints: true
+  # Show a stream where all pixels outside the defined color range are black.
   show_color_mask: true
   # simulate
+  # Simulate limbs.
   simulate_limbs: true
+  # Simulate joints.
   simulate_joints: false
+  # Simulate connections between joints.
   simulate_joint_connections: false
   # camera
+  # Camera resolution. Check documentation or the Intel RealSenseViewer for possible resolutions.
   resolution: [480, 270]
+  # Configure the camera for this number of frames per second. Program can run with fewer fps (especially the Simulator).
   fps: 30
+  # Rotation of the camera in 90° steps. 0: no rotation. 1: 90° clockwise, 2: 180°, -1: 90° anti-clockwise.
+  # In contrast to rotation, this is directly applied to the received image and pushed to OpenPose.
+  # OpenPose should receive an upright image for the best results.
   flip: 1
+  # (x,y,z) translation to apply to 3D joints at the end, in meters.
   translation: [0, 1, 0]
+  # (x-axis, y-axis, z-axis) rotation to apply to 3D joints at the end, in radians.
   rotation: [0, 0, 0]
-  # depth_settings
+  # depth settings
+  # Refer to the documentation of Intel Depth Cameras / Intel RealSense for more information.
+  # Preset for the visual appearance of the depth stream.
   visual_preset: "High Density"
+  # Camera exposure settings.
   exposure: 16000
+  # Camera gain settings.
   gain: 16
+  # Power of the camera's laser for depth sensing.
   laser_power: 360
+  # Units for depth measurement.
   depth_units: 0.0005
   # post_processing
+  # Refer to the documentation of Intel Depth Cameras / Intel RealSense for more information.
+  # Whether to apply a decimation filter.
   decimation_filter: false
+  # Convert depth to disparity.
   depth2disparity: true
+  # Apply a spatial filter.
   spatial_filter: true
+  # Apply a temporal filter.
   temporal_filter: true
+  # Convert disparity back to depth.
   disparity2depth: true
+  # Level of hole filling filter to apply.
   hole_filling_filter: -1
   # validation
+  # Maps joint names to openpose indices.
   joint_map:  # do not change, as defined in OpenPose
     Nose: 0
     Neck: 1
@@ -64,6 +100,7 @@ RGBDto3DPose:
     RSmallToe: 23
     RHeel: 24
     Background: 25
+  # List of connections between joints with their names
   connections_hr: # for all tuples (a,b): a<b
     - [ 'Nose', 'Neck' ]
     - [ 'Nose', 'REye' ]
@@ -85,8 +122,11 @@ RGBDto3DPose:
     - [ 'LKnee', 'LAnkle' ]
     - [ 'RAnkle', 'RBigToe' ]
     - [ 'LAnkle', 'LBigToe' ]
+  # List of joints to validate with color-range
   color_validation_joints_hr: [RWrist, LWrist]
+  # Color range to validate joints
   color_range: [ [0, 75, 0], [255, 255, 53] ]
+  # Accepted length ranges for each connection
   lengths_hr:   # must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
     Nose-Neck: [0.17, 0.27]
     Nose-LEye: [0.03, 0.06]
@@ -108,6 +148,7 @@ RGBDto3DPose:
     RKnee-RAnkle: [0.44, 0.51]
     LAnkle-LBigToe: [0.15, 0.21]
     RAnkle-RBigToe: [0.15, 0.21]
+  # Accepted maximum depth (z-coordinate) deviations for each connection
   depth_deviations_hr:  # must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
     Nose-Neck: 0.2
     Nose-LEye: 0.04
@@ -129,6 +170,7 @@ RGBDto3DPose:
     RKnee-RAnkle: -1
     LAnkle-LBigToe: -1
     RAnkle-RBigToe: -1
+  # Define the search area where a valid depth is searched for invalid joints for each joint. Format: [deviation, skip] in pixels.
   search_areas_hr:  # [deviation, skip] in pixels
     Nose: [ 8, 3 ]
     Neck: [ 12, 3 ]
@@ -173,17 +215,37 @@ OpenPoseHandler:
     render_pose: 1
     # "net_resolution": "-1x736"    # Multiples of 16. If it is increased, the accuracy potentially increases. If it is decreased, the speed increases. For maximum speed-accuracy balance, it should keep the closest aspect ratio possible to the images or videos to be processed. Using -1 in any of the dimensions, OP will choose the optimal aspect ratio depending on the user's input value.
 Simulator:
+  # If this process should start PyBullet. True if standalone, False if integrated into another program which uses PyBullet.
   start_pybullet: true
+  # If Simulator should read joints from provided file.
   playback: true
+  # File to read joints from
   playback_file: "res/test_joints.pkl"
+  # 0: normal mode, simulate each frame for [frame_duration] sec.
+  # 1: Real-Time, simulate each frame at time defined in the saved timesteps. Might skip frames.
+  # 2: Step-by-step, press any key to simulate next frame, "q" to quit.
   playback_mode: 1
+  # Duration for each frame. Applies only for normal playback mode.
   frame_duration: 0.1
+  # If limbs should be simulated.
   simulate_limbs: True
+  # If joints should be simulated.
   simulate_joints: False
+  # If connections between joint should be simulated.
   simulate_joint_connections: False
+  # If limbs, whose distance between old and new position is less than [min_distance_to_move_outside_physic_sim] meters
+  # should be moved using physic simulation. If false, limbs will "teleport" to the new position.
+  # Must be True for collision detection to work.
   move_in_physic_sim: True
+  # Minimal distance to move limb outside of physic simulation. Applies only if [move_in_physic_sim] is True.
+  # Collision detection will only work if moved inside physic simulation.
+  # Moving limbs over greater distance inside physic simulation takes time.
+  # --> Value that worked well in practice: ~ 0.05
   min_distance_to_move_outside_physic_sim: 0.05
+  # "Speed" of moving limbs in physics sim. Low values move limbs faster but collision detection is less precise.
+  # -> Value that worked well in practice: ~ 0.01
   time_delta_move_in_physic_sim: 0.01
+  # Maps joint names to openpose indices.
   joint_map: # do not change, as defined in OpenPose, as above
     Nose: 0
     Neck: 1
@@ -211,6 +273,7 @@ Simulator:
     RSmallToe: 23
     RHeel: 24
     Background: 25
+  # Limbs to simulate. List of lists of the joints they are made up from.
   limbs: # must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
     - [ 'Nose' ]
     - [ 'Nose', 'Neck' ]
@@ -227,6 +290,7 @@ Simulator:
     - [ 'LKnee', 'LAnkle' ]
     - [ 'RAnkle', 'RBigToe' ]
     - [ 'LAnkle', 'LBigToe' ]
+  # Radii of limbs, in meters.
   radii:
     Nose: 0.11
     Nose-Neck: 0.06
@@ -243,6 +307,7 @@ Simulator:
     LKnee-LAnkle: 0.06
     RAnkle-RBigToe: 0.03
     LAnkle-LBigToe: 0.03
+  # Lengths of limbs (for those consisting of two joints), in meters.
   lengths:
     Nose-Neck: 0.2
     Neck-MidHip: 0.6
@@ -257,10 +322,17 @@ Simulator:
     RAnkle-RBigToe: 0.15
     LAnkle-LBigToe: 0.15
 Debug:
+  # 0: Debug color mask
+  # 1: Debug search area
+  # 2: Debug length or depth
   mode: 1   # 0: color mask, 1: search area, 2: length
   length_args:
+    # For debugging length or depth: Choose length (0) or depth (1).
     mode: 0   # 0: length, 1: depth
+    # Save statistics about length or depth of current session as .csv or .xlsx
     output_filename: null
+    # Override connections and only debug those specified here
     custom_connections: null
+    # Debug only those connections specified in RGBDto3DPose section except those specified here.
     connections_except: null
 

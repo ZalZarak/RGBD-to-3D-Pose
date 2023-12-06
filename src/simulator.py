@@ -38,7 +38,7 @@ class Simulator:
                               2: Step-by-step, press any key to simulate next frame, "q" to quit.
         :param frame_duration: Duration for each frame. Applies only for normal playback mode.
         :param simulate_limbs: If limbs should be simulated.
-        :param simulate_joints: If joint should be simulated.
+        :param simulate_joints: If joints should be simulated.
         :param simulate_joint_connections: If connections between joint should be simulated.
         :param move_in_physic_sim: If limbs, whose distance between old and new position is less than [min_distance_to_move_outside_physic_sim] meters
                                    should be moved using physic simulation. If false, limbs will "teleport" to the new position.
@@ -50,9 +50,9 @@ class Simulator:
         :param time_delta_move_in_physic_sim: "Speed" of moving limbs in physics sim. Low values move limbs faster but collision detection is less precise.
                                               -> Value that worked well in practice: ~ 0.01
         :param joint_map: Maps joint names to openpose indices.
-        :param limbs: List of limbs as lists of the joints they are made up from,
-        :param radii: Radii of limbs
-        :param lengths: lengths of limbs (for those consisting of two joints)
+        :param limbs: Limbs to simulate. List of lists of the joints they are made up from.
+        :param radii: Radii of limbs, in meters.
+        :param lengths: Lengths of limbs (for those consisting of two joints), in meters.
         :param as_subprocess: If this is a subprocess of RGBDto3DPose. If false, RGBDto3DPose is a subprocess of Simulator.
         :param joints_sync: If this is a subprocess, to exchange joints with RGBDto3DPose, else None. mp.Array('f', np.zeros([25 * 3])), filled out automatically by RGBDto3DPose
         :param ready_sync: If this is a subprocess, to communicate with RGBDto3DPose when process is ready, else None. mp.Event, filled out automatically by RGBDto3DPose

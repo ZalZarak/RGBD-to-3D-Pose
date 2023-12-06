@@ -1,5 +1,6 @@
 import yaml
 
+# Replace with your config
 path = 'config/config.yaml'
 
 # Load YAML data from a file

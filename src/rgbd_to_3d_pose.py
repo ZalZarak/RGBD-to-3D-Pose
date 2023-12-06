@@ -39,7 +39,7 @@ class RGBDto3DPose:
         :param playback_file: File to playback from. Ignored if playback == False.
         :param resolution: Camera resolution. Check documentation or the Intel RealSenseViewer for possible resolutions.
         :param fps: Configure the camera for this number of frames per second. Program can run with fewer fps (especially the Simulator).
-        :param flip: 90° rotation of the camera. 0: no rotation. 1: 90° clockwise, 2: 180°, -1: 90° anti-clockwise.
+        :param flip: Rotation of the camera in 90° steps. 0: no rotation. 1: 90° clockwise, 2: 180°, -1: 90° anti-clockwise.
                      In contrast to rotation, this is directly applied to the received image and pushed to OpenPose.
                      OpenPose should receive an upright image for the best results.
         :param countdown: Countdown until start of stream/playback, in seconds.
@@ -50,8 +50,8 @@ class RGBDto3DPose:
         :param save_bag: If a bag of the color and depth stream should be saved under savefile_prefix + ".bag". Attention: No compression -> big files.
         :param show_rgb: Show RGB-Stream.
         :param show_depth: Show Depth-Stream.
-        :param show_joints: Show joints and connections on both the RGB-Stream and the Depth-Stream.
-        :param show_color_mask: Show a stream where all pixels outside the color range are black.
+        :param show_joints: Show joints and connections in both the RGB-Stream and the Depth-Stream.
+        :param show_color_mask: Show a stream where all pixels outside the defined color range are black.
         :param simulate_limbs: Simulate limbs.
         :param simulate_joints: Simulate joints.
         :param simulate_joint_connections: Simulate connections between joints.
@@ -68,7 +68,7 @@ class RGBDto3DPose:
         :param hole_filling_filter: Level of hole filling filter to apply.
         :param joint_map: Maps joint names to openpose indices.
         :param connections_hr: List of connections between joints with their names (human-readable)
-        :param color_validation_joints_hr: List of connections to validate with color-range (human-readable)
+        :param color_validation_joints_hr: List of joints to validate with color-range (human-readable)
         :param color_range: Color range to validate joints
         :param lengths_hr: Accepted length ranges for each connection
         :param depth_deviations_hr: Accepted maximum depth (z-coordinate) deviations for each connection
