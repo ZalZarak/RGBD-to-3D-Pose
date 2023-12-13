@@ -69,7 +69,7 @@ RGBDto3DPose:
   temporal_filter: true
   # Convert disparity back to depth.
   disparity2depth: true
-  # Level of hole filling filter to apply.
+  # Level of hole filling filter to apply. It is recommended to enable one.
   hole_filling_filter: -1
   # validation
   # Maps joint names to openpose indices.
@@ -126,7 +126,7 @@ RGBDto3DPose:
   color_validation_joints_hr: [RWrist, LWrist]
   # Color range to validate joints
   color_range: [ [0, 75, 0], [255, 255, 53] ]
-  # Accepted length ranges for each connection
+  # Accepted length ranges for each connection, in meters
   lengths_hr:   # must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
     Nose-Neck: [0.17, 0.27]
     Nose-LEye: [0.03, 0.06]
@@ -148,7 +148,7 @@ RGBDto3DPose:
     RKnee-RAnkle: [0.44, 0.51]
     LAnkle-LBigToe: [0.15, 0.21]
     RAnkle-RBigToe: [0.15, 0.21]
-  # Accepted maximum depth (z-coordinate) deviations for each connection
+  # Accepted maximum depth (z-coordinate) deviations for each connection, in meters
   depth_deviations_hr:  # must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
     Nose-Neck: 0.2
     Nose-LEye: 0.04
@@ -225,7 +225,7 @@ Simulator:
   # 1: Real-Time, simulate each frame at time defined in the saved timesteps. Might skip frames.
   # 2: Step-by-step, press any key to simulate next frame, "q" to quit.
   playback_mode: 1
-  # Duration for each frame. Applies only for normal playback mode.
+  # Duration for each frame. Applies only for normal playback mode 1.
   frame_duration: 0.05
   # If limbs should be simulated.
   simulate_limbs: True
