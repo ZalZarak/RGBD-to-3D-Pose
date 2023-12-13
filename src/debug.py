@@ -94,7 +94,7 @@ def debug_color_mask():
     key = None
     try:
         while key != 27:
-            color_frame, color_image, depth_frame, depth_image = cl.get_frames()
+            color_frame, color_image, depth_frame, depth_image, _ = cl.get_frames()
 
             helper.show_mask("Debug-Mask", color_image,
                              np.array([[color_ranges["lower blue"], color_ranges["lower green"], color_ranges["lower red"]],
@@ -205,7 +205,7 @@ def debug_search_area():
     key = None
     try:
         while key != 27:
-            color_frame, color_image, depth_frame, depth_image = cl.get_frames()
+            color_frame, color_image, depth_frame, depth_image, _ = cl.get_frames()
             joints_2d, confidences, joint_image = cl.openpose_handler.push_frame(color_image)
             joints_2d = joints_2d.astype(int)
 
@@ -358,7 +358,7 @@ def debug_length(mode: int, output_filename: str = None, custom_connections=None
     key = None
     try:
         while key != 27:
-            color_frame, color_image, depth_frame, depth_image = cl.get_frames()
+            color_frame, color_image, depth_frame, depth_image, _ = cl.get_frames()
             joints_2d, confidences, joint_image = cl.openpose_handler.push_frame(color_image)
             joints_2d = joints_2d.astype(int)
 
