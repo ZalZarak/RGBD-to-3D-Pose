@@ -1,0 +1,7 @@
+numpy>=1.26.2
+opencv_python>=4.8.1.78
+pandas>=2.1.4
+pybullet>=3.2.6
+pyrealsense2>=2.54.2.5684
+PyYAML>=6.0.1
+python-cfonts>=1.52

@@ -6,10 +6,10 @@ This repository extracts 3D-coordinates of joint positions of a humanoid using
 [OpenPose](https://github.com/CMU-Perceptual-Computing-Lab/openpose) and a [IntelRealSense Depth-Camera](https://www.intelrealsense.com/).
 With those joints it simulates a humanoid having spheres and cylinders as limbs in [PyBullet](https://pybullet.org/).
 
-It is designed to work as detection of the human pose for collision avoidance for robots 
-(proof of concept). It is designed to work in this project [IR-DRL](https://github.com/ignc-research/IR-DRL).   
+It is designed detect humans for collision avoidance for robots (proof of concept). 
+It is designed to work in this project: [IR-DRL](https://github.com/ignc-research/IR-DRL).   
 
-It may work for you too. Feel free to use it. 
+It may work for your purpose too. Feel free to use it. 
 
 ## Installation
 1. - Install OpenPose as described here: https://github.com/CMU-Perceptual-Computing-Lab/openpose/blob/master/doc/installation/0_index.md.    
@@ -18,7 +18,8 @@ It may work for you too. Feel free to use it.
         - Add Entry in CMake Gui: Name: PYTHON_EXECUTABLE, Type: file path
         - Set it to your python executable
    - This is easier on Linux. For Windows, you can consider following tips: [openpose_installation_tips.txt](openpose_installation_tips.txt)
-   - Install all dependencies #TODO
+   - Install all dependencies
+     - ```pip install -r requirements.txt```
    - Depending on your OS, provide the correct path files in your config under OpenPoseHandler.
    - Optional: Set custom flags for OpenPose in the config, e.g. greater precision
         - Here are all possible flags, not all of them are useful for this purpose: [openpose_flags.md](openpose_flags.md)
@@ -48,7 +49,7 @@ Now, some joints might be occluded by objects in front of them but still recogni
 would produce inaccurate 3D-Positions (with the depth of the object instead of the joint).   
 The program performs the following to increase accuracy:
 - It validates each joint through the connections defined in the config under _RGBDto3DPose/connections_hr_.
-  A joint is marked as valid, if validates through at least one of its connections
+  A joint is marked as valid, if it validates through at least one of its connections
 - Each connection has a defined accepted length range under _RGBDto3DPose/lengths_hr_ and a maximal depth
   deviation under _RGBDto3DPose/depth_hr_.   
   - The length is valid if the distance between the joints is within the range. The depth deviation is 
@@ -79,7 +80,7 @@ The Simulator simulates the humanoid in 3D with simple spheres and cylinders. It
 from RGBDto3DPose in real-time or from a file.    
 It can be integrated into other programs. Collision detection works between the humanoid and other
 objects. The collision humanoid collision filter group mask is (-1, 1, 0).   
-Current joint positions are saved in simulator_instance.joints.
+Current joint positions are saved in self.joints.
 
 - The limbs are defined in the config under Simulator/limbs, Simulator/radii and Simulator/lengths.
 - If a limb has a single joint, it becomes a sphere, if it has two joints, it becomes a cylinder. 
@@ -105,7 +106,7 @@ search areas and a GUI to set those.
 Different modes can be configured in the config under Debug. It takes all other necessary 
 configuration from RGBDto3DPose. 
 
-For length and depth it will give you some statistics about meausured length/depth per node. This is
+For length and depth it will give you some statistics about meausured length/depth per joint. This is
 just meant as help. 
 
 ### [Helper](src/helper.py)
@@ -128,7 +129,7 @@ Go to [config_explanation](config/config_explanation.yaml) for a detailed descri
   meant as help and orientation.   
   __Known Bug__: In this mode, OpenPose works poorly. Set flip=0 for a better performance.
 - The camera depth sensor isn't very precise. You will need to set your ranges in a way, that will 
-  accept connections in normal positions, where the depth value is good distinguishable.
+  accept connections in normal positions, where the depth value is well distinguishable.
   - Example: If you point your hand at the camera, OpenPose is likely to detect your elbow joint, 
     but the depth won't be precise enough.
   - Great differences in depth over few pixels are poorly detected.
@@ -164,4 +165,4 @@ Go to [config_explanation](config/config_explanation.yaml) for a detailed descri
   - Hands are usually important, so the density is higher.
   - Torso has a high deviation, so density can be lower.
   - Balance it to your needs.
-- High densities and high deviations increase lag (not measured).
+- High densities and high deviations may increase lag (not measured).
