@@ -9,7 +9,7 @@ from math import sin, cos
 
 import multiprocessing as mp
 
-from src import helper, simulator
+from src import helper, simulator, custom_3d_joint_transforms
 from src.config import config
 from src.openpose_handler import OpenPoseHandler
 
@@ -26,7 +26,7 @@ class RGBDto3DPose:
                  temporal_filter: bool, disparity2depth: bool, hole_filling_filter: int,
                  joint_map: dict, connections_hr: list[tuple[str, str]], color_validation_joints_hr: list[str],
                  color_range: tuple[tuple[int, int, int], tuple[int, int, int]], lengths_hr: dict, depth_deviations_hr: dict,
-                 search_areas_hr: dict,
+                 search_areas_hr: dict, joint_3d_transforms: [str],
                  start_simulator=True, joints_sync=None, ready_sync=None, done_sync=None, new_joints_sync=None
                  ):
         """
@@ -73,6 +73,9 @@ class RGBDto3DPose:
         :param lengths_hr: Accepted length ranges for each connection
         :param depth_deviations_hr: Accepted maximum depth (z-coordinate) deviations for each connection
         :param search_areas_hr: Define the search area where a valid depth is searched for invalid joints for each joint. Format: [deviation, skip] in pixels.
+        :param joint_3d_transforms: Names of custom transform functions for 3d-joints in custom_3d_joint_transforms.py.
+                                    Will be applied in the given order in camera space after extracting 3d coordinates and performing validation.
+                                    Visit custom_3d_joint_transforms.py for more information.
         :param start_simulator: If Simulator should start as separate process from here. Otherwise, Simulator should start a RGBDto3DPose process.
         :param joints_sync: If this is a subprocess, to exchange joints with Simulator, else None. mp.Array('f', np.zeros([25 * 3])), filled out automatically by Simulator
         :param ready_sync: If this is a subprocess, to communicate with Simulator when process is ready, else None. mp.Event, filled out automatically by Simulator
@@ -261,6 +264,10 @@ class RGBDto3DPose:
 
         self.color_validation_joints = [joint_map[j] for j in color_validation_joints_hr]
 
+        self.joint_3d_transforms = []
+        for name in joint_3d_transforms:
+            self.joint_3d_transforms.append(getattr(custom_3d_joint_transforms, name))
+
     def run(self):
         """
         Run the program as configured.
@@ -382,7 +389,17 @@ class RGBDto3DPose:
             color_image_camera_space = np.rot90(color_image, k=self.flip_rev)  # rotate color_image back to camera space
 
             joints_3d = self.get_3d_joints(joints_2d_camera_space, confidences, depth_frame, color_image_camera_space)  # retrieve 3d coordinates for joints
-            joints_3d = np.apply_along_axis(self.camera_to_real_space_3d, 1, joints_3d)     # flip the coordinates into the right perspective
+
+            for f in self.joint_3d_transforms:
+                # apply custom transforms
+                joints_3d = f(joints_3d)
+
+            for i in range(25):
+                # set supposedly incorrect joints to zero
+                if joints_3d[i, 2] == 0:
+                    joints_3d[i] = 0
+
+            joints_3d = np.apply_along_axis(self.camera_to_real_space_3d, 1, joints_3d)  # flip the coordinates into the right perspective
             joints_3d = np.apply_along_axis(self.transform, 1, joints_3d)         # apply translation/rotation
 
             if self.simulate:
@@ -553,41 +570,11 @@ class RGBDto3DPose:
                             break  # Inner loop was broken, break the outer.
                         except RuntimeError:  # joint outside of image
                             print("This shouldn't happen during correction!")
-                            pass
 
         for i in range(25):
-            # set supposedly incorrect joints to zero
+            # set z-coordinate of supposedly incorrect joints to zero
             if not val[i]:
-                val_joints[i] = 0
-
-        # TODO: make optional, or better: in Simulator
-        # reduce head to nose
-        if all(val_joints[0] == 0):  # nose not detected
-            if val_joints[15, 2] != 0 and val_joints[16, 2] != 0:  # both eyes validated
-                val_joints[0] = (val_joints[15] + val_joints[16]) / 2
-            elif val_joints[15, 2] != 0:  # one eye validated
-                val_joints[0] = val_joints[15]
-            elif val_joints[16, 2] != 0:  # one eye validated
-                val_joints[0] = val_joints[16]
-            elif val_joints[17, 2] != 0 and val_joints[18, 2] != 0:  # both ears validated
-                val_joints[0] = (val_joints[17] + val_joints[18]) / 2
-            elif val_joints[17, 2] != 0:  # one ear validated
-                val_joints[0] = val_joints[17]
-            elif val_joints[18, 2] != 0:  # one ear validated
-                val_joints[0] = val_joints[18]
-        elif val_joints[0, 2] == 0:  # nose not validated
-            if val_joints[15, 2] != 0 and val_joints[16, 2] != 0:  # both eyes validated
-                val_joints[0, 2] = (val_joints[15, 2] + val_joints[16, 2]) / 2
-            elif val_joints[15, 2] != 0:  # one eye validated
-                val_joints[0, 2] = val_joints[15, 2]
-            elif val_joints[16, 2] != 0:  # one eye validated
-                val_joints[0, 2] = val_joints[16, 2]
-            elif val_joints[17, 2] != 0 and val_joints[18, 2] != 0:  # both ears validated
-                val_joints[0, 2] = (val_joints[17, 2] + val_joints[18, 2]) / 2
-            elif val_joints[17, 2] != 0:  # one ear validated
-                val_joints[0, 2] = val_joints[17, 2]
-            elif val_joints[18, 2] != 0:  # one ear validated
-                val_joints[0, 2] = val_joints[18, 2]
+                val_joints[i, 2] = 0
 
         return val_joints
 

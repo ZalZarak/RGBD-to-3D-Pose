@@ -113,6 +113,18 @@ just meant as help.
 
 Some helper methods
 
+### [Custom 3D joint transforms](src/custom_3d_joint_transforms.py)
+
+Here you can define your own transforms for extracted 3d joints.
+- functions must take and return np.ndarray([25, 3]).
+- This will be applied after 3d joints are extracted and validated.
+- But before any other transforms, e.g. the joints are in camera space, not in "real" space.
+- So, neither flips (90° camera rotations), nor translations nor rotation were applied at this point.
+- undetected joints are (0,0,0).
+- unvalidated joints have z=0, e.g. (x,y,0).
+- This should stay this way, e.g. (0,0,0) should stay (0,0,0) and (x,y,0) should stay (x,y,0).
+- A joint with (x,y,z) with z!=0 must not become (a,b,0).
+
 ### [Config](src/config.py)
 
 __Change the used config here!__

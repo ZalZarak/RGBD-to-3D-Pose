@@ -198,6 +198,10 @@ RGBDto3DPose:
     RSmallToe: [ 0, 0 ]
     RHeel: [ 0, 0 ]
     Background: [ 0, 0 ]
+  # Names of custom transform functions for 3d-joints in custom_3d_joint_transforms.py.
+  # Will be applied in the given order in camera space after extracting 3d coordinates and performing validation.
+  # Visit custom_3d_joint_transforms.py for more information.
+  joint_3d_transforms: ["estimate_nose_from_head_joints"]
 OpenPoseHandler:
   # Ubuntu
   openpose_python_path_ubuntu: "/home/pk/programs/openpose/build/python"

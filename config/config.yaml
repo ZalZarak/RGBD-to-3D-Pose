@@ -1,4 +1,4 @@
-run_from: 1   # RGBDto3DPose: 0, Simulator: 1, Debug: 2
+run_from: 0   # RGBDto3DPose: 0, Simulator: 1, Debug: 2
 RGBDto3DPose:
   playback: true
   playback_file: res/test.bag
@@ -156,6 +156,7 @@ RGBDto3DPose:
     RSmallToe: [ 0, 0 ]
     RHeel: [ 0, 0 ]
     Background: [ 0, 0 ]
+  joint_3d_transforms: ["estimate_nose_from_head_joints"]
 OpenPoseHandler:
   # Ubuntu
   openpose_python_path_ubuntu: "/home/pk/programs/openpose/build/python"

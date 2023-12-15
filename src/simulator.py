@@ -19,7 +19,7 @@ def is_joint_valid(joint: np.ndarray):
 
 class Simulator:
 
-    # TODO: Collision shapes: Dont forget to activate/deactivate
+    #TODO: Collision shapes: Dont forget to activate/deactivate
     def __init__(self, start_pybullet: bool, playback: bool, playback_file: str | None, playback_mode: int, frame_duration: float,
                  simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool,
                  move_in_physic_sim: bool, min_distance_to_move_outside_physic_sim: float, time_delta_move_in_physic_sim: float,
