@@ -19,7 +19,6 @@ def is_joint_valid(joint: np.ndarray):
 
 class Simulator:
 
-    #TODO: Collision shapes: Dont forget to activate/deactivate
     def __init__(self, start_pybullet: bool, playback: bool, playback_file: str | None, playback_mode: int, frame_duration: float,
                  simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool,
                  move_in_physic_sim: bool, min_distance_to_move_outside_physic_sim: float, time_delta_move_in_physic_sim: float,
@@ -29,6 +28,7 @@ class Simulator:
         Simulates a humanoid made up of spheres and cylinders from 3D joint positions. Either receives those synchronously from a
         running RGBDto3DPose process or reads them from a file.
         Current joint positions are stored in self.joints.
+        Pybullet IDs of currently valid/invalid limbs are saved in self.limb_list_valid and self.limb_list_invalid.
 
         :param start_pybullet: If this process should start PyBullet. True if standalone, False if integrated into another program which uses PyBullet.
         :param playback: If Simulator should read joints from provided file.
@@ -71,7 +71,6 @@ class Simulator:
         self.min_distance_to_move_outside_physic_sim = min_distance_to_move_outside_physic_sim
         self.time_delta = time_delta_move_in_physic_sim
         self.limb_list = []
-        # TODO valid/invalid ?
         self.limb_list_valid = []   # valid limbs of last processed frame
         self.limb_list_invalid = []  # invalid limbs of last processed frame
         for i in limbs:
@@ -288,7 +287,7 @@ class Simulator:
         for limb in self.limb_list:
             limb_pb = self.limbs_pb[limb]
             if all([is_joint_valid(joints[l]) for l in limb]):  # if all limb joints are valid
-                self.limb_list_valid.append(limb)
+                self.limb_list_valid.append(limb_pb)
                 p.setCollisionFilterGroupMask(limb_pb, -1, 1, 0)    # activate collision
                 if len(limb) == 1:  # if it's a sphere
                     midpoint = joints[limb[0]]
@@ -325,8 +324,8 @@ class Simulator:
                     p.resetBasePositionAndOrientation(limb_pb, midpoint, orientation)
 
                 p.changeVisualShape(limb_pb, -1, rgbaColor=[0, 0, 0.9, 0.5])    # make it visible
-            else:   # one limb joint is invalid
-                self.limb_list_invalid.append(limb)
+            else:   # at least one limb joint is invalid
+                self.limb_list_invalid.append(limb_pb)
                 p.changeVisualShape(limb_pb, -1, rgbaColor=[0, 0, 0, 0])        # make invisible
                 p.setCollisionFilterGroupMask(limb_pb, -1, 0, 0)                # deactivate collision
 

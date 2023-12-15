@@ -81,6 +81,7 @@ from RGBDto3DPose in real-time or from a file.
 It can be integrated into other programs. Collision detection works between the humanoid and other
 objects. The collision humanoid collision filter group mask is (-1, 1, 0).   
 Current joint positions are saved in self.joints.
+Pybullet IDs of currently valid/invalid limbs are saved in self.limb_list_valid and self.limb_list_invalid.
 
 - The limbs are defined in the config under Simulator/limbs, Simulator/radii and Simulator/lengths.
 - If a limb has a single joint, it becomes a sphere, if it has two joints, it becomes a cylinder. 

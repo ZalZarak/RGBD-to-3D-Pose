@@ -236,6 +236,7 @@ def debug_search_area():
         cl.pipeline.stop()
 
 
+# FIXME: flip!=0 leads to bad openpose perception
 def debug_length(mode: int, output_filename: str = None, custom_connections=None, connections_except=None):
     # mode 0: length, mode 1: depth
 
