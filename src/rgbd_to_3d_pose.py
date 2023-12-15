@@ -256,7 +256,6 @@ class RGBDto3DPose:
         for k, v in search_areas_hr.items():
             self.search_areas[joint_map[k]] = helper.generate_base_search_area(v[0], v[1])
 
-        # TODO: set?
         self.connections_dict = {k: set() for k in range(26)}
         for a, b in self.connections:
             self.connections_dict[a].add(b)
@@ -476,18 +475,19 @@ class RGBDto3DPose:
             """
 
             # If one joint has no depth, it was not detected correctly
-            if val_joints[connection[0], 2] == 0 or val_joints[connection[1], 2] == 0:
+            if joints_3d[connection[0], 2] == 0 or joints_3d[connection[1], 2] == 0:
                 return False
 
             # retrieve accepted bounds for length and depth
             l_min, l_max = self.lengths[connection]
             deviation = self.depth_deviations[connection]
 
-            return ((l_min <= np.linalg.norm(val_joints[connection[1]] - val_joints[connection[0]]) <= l_max)  # length validation
+            return ((l_min <= np.linalg.norm(joints_3d[connection[1]] - joints_3d[connection[0]]) <= l_max)  # length validation
                    and
-                   (deviation < 0 or abs(val_joints[connection[0], 2] - val_joints[connection[1], 2]) <= deviation))  # depth validation
+                   (deviation < 0 or abs(joints_3d[connection[0], 2] - joints_3d[connection[1], 2]) <= deviation))  # depth validation
 
-        joints_3d = np.zeros([joints_2d.shape[0], 3])   # TODO: Replace joints_3d with val_joints
+
+        joints_3d = np.zeros([joints_2d.shape[0], 3])
         # get 3d coordinates for all joints
         for i, (x, y) in enumerate(joints_2d):
             try:
@@ -501,7 +501,6 @@ class RGBDto3DPose:
                 pass
 
         val = np.zeros(25, dtype="bool")
-        val_joints = np.copy(joints_3d)
 
         # Problem: Joints might be occluded, then 3d joint would be wrong
         # Idea: If 3d coordinate is wrong, then it's likely that the length of limbs should be incorrect or the depth deviation too high
@@ -530,7 +529,7 @@ class RGBDto3DPose:
                             depth = depth_frame.get_distance(x_search, y_search)    # get the depth at this pixel
                             if depth > 0:
                                 # get coordinate of original x,y but with the new depth
-                                val_joints[color_joint] = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x, y), depth=depth)
+                                joints_3d[color_joint] = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x, y), depth=depth)
                                 val[color_joint] = True
                                 break   # found depth, go to next joint
                         except RuntimeError:  # joint outside of image
@@ -556,7 +555,7 @@ class RGBDto3DPose:
                                 continue
 
                             # get coordinate of original x,y but with the new depth
-                            val_joints[i] = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x, y), depth=depth)
+                            joints_3d[i] = rs.rs2_deproject_pixel_to_point(intrin=self.intrinsics, pixel=(x, y), depth=depth)
 
                             # try if any connection validates successfully then break out and continue with the next joint
                             for connected_joint in self.connections_dict[i]:
@@ -574,9 +573,9 @@ class RGBDto3DPose:
         for i in range(25):
             # set z-coordinate of supposedly incorrect joints to zero
             if not val[i]:
-                val_joints[i, 2] = 0
+                joints_3d[i, 2] = 0
 
-        return val_joints
+        return joints_3d
 
 
 def run():
