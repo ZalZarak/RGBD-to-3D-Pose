@@ -257,10 +257,10 @@ class RGBDto3DPose:
             self.search_areas[joint_map[k]] = helper.generate_base_search_area(v[0], v[1])
 
         # TODO: set?
-        self.connections_dict = {k: [] for k in range(26)}
+        self.connections_dict = {k: set() for k in range(26)}
         for a, b in self.connections:
-            self.connections_dict[a].append(b)
-            self.connections_dict[b].append(a)
+            self.connections_dict[a].add(b)
+            self.connections_dict[b].add(a)
 
         self.color_validation_joints = [joint_map[j] for j in color_validation_joints_hr]
 
