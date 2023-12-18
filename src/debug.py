@@ -376,27 +376,32 @@ def debug_length(mode: int, output_filename: str = None, custom_connections=None
                 except RuntimeError:  # joint outside of picture
                     pass
 
+            color_image = color_image.copy()  # copy because cv2 cannot handle views of ndarrays e.g. if they were rotated etc.
             for i, (joint2d, joint3d) in enumerate(zip(joints_2d, joints_3d)):
-                if joint3d[2] != 0:
-                    color_image = color_image.copy()  # copy because cv2 cannot handle views of ndarrays e.g. if they were rotated etc.
-                    cv2.circle(color_image, joint2d, 3, (255, 255, 255), -1)
+                # if joint3d[2] != 0:
+                cv2.circle(color_image, joint2d, 3, (255, 255, 255), -1)
             for pair in connections:
                 point1, point2 = joints_2d[pair[0]], joints_2d[pair[1]]
                 point1_3d, point2_3d = joints_3d[pair[0]], joints_3d[pair[1]]
                 lengths_key = cl.joint_map_rev[pair[0]] + "-" + cl.joint_map_rev[pair[1]]
 
-                if point1.any() != 0 and point2.any() != 0 and point1_3d[2] != 0 and point2_3d[2] != 0:
+                if point1.any() != 0 and point2.any() != 0: # and point1_3d[2] != 0 and point2_3d[2] != 0:
                     center_x = (point1[0] + point2[0]) // 2
                     center_y = (point1[1] + point2[1]) // 2
-                    if mode == 0:
-                        l = np.linalg.norm(point1_3d - point2_3d)
-                        valid = cl.lengths_hr[lengths_key][0] <= l <= cl.lengths_hr[lengths_key][1]
+
+                    if point1_3d[2] != 0 and point2_3d[2] != 0:
+                        if mode == 0:
+                            l = np.linalg.norm(point1_3d - point2_3d)
+                            valid = cl.lengths_hr[lengths_key][0] <= l <= cl.lengths_hr[lengths_key][1]
+                        else:
+                            l = abs(point1_3d[2] - point2_3d[2])
+                            valid = (cl.depth_deviations_hr[lengths_key] < 0 or l <= cl.depth_deviations_hr[lengths_key])
+                        lengths[lengths_key].append(l)
+                        color = (0, 200, 0) if valid else (0, 0, 200)
+                        text = str(l.round(2))
                     else:
-                        l = abs(point1_3d[2] - point2_3d[2])
-                        valid = (cl.depth_deviations_hr[lengths_key] < 0 or l <= cl.depth_deviations_hr[lengths_key])
-                    color = (0, 200, 0) if valid else (0, 0, 200)
-                    lengths[lengths_key].append(l)
-                    text = str(l.round(2))
+                        color = (0, 0, 0)
+                        text = "0.0"
 
                     text_size, _ = cv2.getTextSize(text, font, font_scale, font_thickness)
                     text_x = center_x - (text_size[0] // 2)
@@ -405,6 +410,7 @@ def debug_length(mode: int, output_filename: str = None, custom_connections=None
                     cv2.putText(color_image, text, (text_x, text_y), font, font_scale, font_color, font_thickness)
 
             cv2.imshow("Debug-Joint", color_image)
+            helper.show("Debug-Joint-Depth", depth_image, joints_2d, connections)
 
             gui.update()
 
