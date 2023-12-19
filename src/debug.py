@@ -83,6 +83,7 @@ def debug_color_mask():
     debug_config = copy.deepcopy(config["RGBDto3DPose"])
     debug_config["save_joints"] = debug_config["save_bag"] = debug_config["show_rgb"] = debug_config["show_depth"] = debug_config["show_joints"] \
         = debug_config["show_color_mask"] = debug_config["simulate_limbs"] = debug_config["simulate_joints"] = debug_config["simulate_joint_connections"] = False
+    debug_config["alignment"] = 0
     cl = RGBDto3DPose(**debug_config)
 
     cl.prepare()
