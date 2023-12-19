@@ -1,6 +1,6 @@
 run_from: 0   # RGBDto3DPose: 0, Simulator: 1, Debug: 2
 RGBDto3DPose:
-  playback: true
+  playback: false
   playback_file: res/test.bag
   duration: -1
   countdown: -1
@@ -18,18 +18,22 @@ RGBDto3DPose:
   simulate_joints: false
   simulate_joint_connections: false
   # camera
-  resolution: [480, 270]
+  resolution: [640, 480]
   fps: 30
-  flip: 1
+  flip: 0
   translation: [0, 1, 0]
   rotation: [0, 0, 0]
   # depth_settings
   visual_preset: "High Density"
-  exposure: 16000
+  exposure: 4000
   gain: 16
   laser_power: 360
   depth_units: 0.0005
   # post_processing
+  # 0: off (not recommended)
+  # 1: depth to color (test first as described in README "Why does the color stream look so weird?")
+  # 2: color to depth
+  alignment: 2
   decimation_filter: false
   depth2disparity: true
   spatial_filter: true
@@ -258,10 +262,12 @@ Simulator:
     RAnkle-RBigToe: 0.15
     LAnkle-LBigToe: 0.15
 Debug:
-  mode: 1   # 0: color mask, 1: search area, 2: length
+  mode: 2   # 0: color mask, 1: search area, 2: length, 3: view coordinates
   length_args:
     mode: 0   # 0: length, 1: depth
     output_filename: null
     custom_connections: null
     connections_except: null
+  view_coordinates_args:
+    joints_to_show: [ 'RWrist']
 

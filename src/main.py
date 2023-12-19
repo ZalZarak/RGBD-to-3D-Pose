@@ -13,5 +13,7 @@ if __name__ == '__main__':
             debug.debug_search_area()
         elif config["Debug"]["mode"] == 2:
             debug.debug_length(**config["Debug"]["length_args"])
+        elif config["Debug"]["mode"] == 3:
+            debug.view_coordinates(**config["Debug"]["view_coordinates_args"])
     else:
-        raise ValueError("run_from: 0 or 1")
+        raise ValueError("run_from: 0 or 1, debug mode: 0-3")

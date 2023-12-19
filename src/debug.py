@@ -497,5 +497,50 @@ def debug_length(mode: int, output_filename: str = None, custom_connections=None
             print(f"Saved to {output_filename}.")
 
 
-if __name__ == '__main__':
-    debug_color_mask()
+def view_coordinates(joints_to_show: list[str]):
+
+    debug_config = copy.deepcopy(config["RGBDto3DPose"])
+    debug_config["save_joints"] = debug_config["save_bag"] = debug_config["show_rgb"] = debug_config["show_depth"] \
+        = debug_config["show_color_mask"] = debug_config["simulate_limbs"] = debug_config["simulate_joints"] = debug_config[
+        "simulate_joint_connections"] = False
+    debug_config["show_joints"] = True
+    cl = RGBDto3DPose(**debug_config)
+    cl.prepare()
+
+    joints_to_show = [cl.joint_map[j] for j in joints_to_show]
+
+    key = None
+    try:
+        while key != 27:
+            color_frame, color_image, depth_frame, depth_image, _ = cl.get_frames()
+            joints_2d, confidences, joint_image = cl.openpose_handler.push_frame(color_image)
+            joints_2d = joints_2d.astype(int)
+
+            joints_3d = np.zeros([joints_2d.shape[0], 3])
+            # get 3d coordinates for all joints
+            for i, (x, y) in enumerate(joints_2d):
+                try:
+                    depth = depth_frame.get_distance(x, y)
+                    if depth > 0:
+                        # get 3d coordinates and reorder them from y,x,z to x,y,z
+                        joints_3d[i] = rs.rs2_deproject_pixel_to_point(intrin=cl.intrinsics, pixel=(x, y), depth=depth)
+                    else:
+                        joints_3d[i] = 0
+                except RuntimeError:  # joint outside of picture
+                    pass
+
+            image = joint_image.copy()  # copy because cv2 cannot handle views of ndarrays e.g. if they were rotated etc.
+            for i in joints_to_show:
+                text = str(f"{round(joints_3d[i, 0], 2)}, {round(joints_3d[i, 1], 2)}, {round(joints_3d[i, 2], 2)}")
+                text_size, _ = cv2.getTextSize(text, font, 2*font_scale, 2*font_thickness)
+                text_x = joints_2d[i, 0] - (text_size[0] // 2)
+                text_y = joints_2d[i, 1] + (text_size[1] // 2)
+                cv2.putText(image, text, (text_x, text_y), font, 2*font_scale, font_color, 2*font_thickness)
+
+            cv2.imshow("Debug-Joint", image)
+            helper.show("Debug-Joint_Depth", depth_image, joints_2d, cl.connections)
+
+            key = cv2.waitKey(1)
+    finally:
+        cv2.destroyAllWindows()
+        cl.pipeline.stop()

@@ -22,7 +22,7 @@ class RGBDto3DPose:
                  show_rgb: bool, show_depth: bool, show_joints: bool, show_color_mask: bool,
                  simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool,
                  visual_preset: str, exposure: int, gain: int, laser_power: int, depth_units: float,
-                 decimation_filter: bool, depth2disparity: bool, spatial_filter: bool,
+                 alignment: int, decimation_filter: bool, depth2disparity: bool, spatial_filter: bool,
                  temporal_filter: bool, disparity2depth: bool, hole_filling_filter: int,
                  joint_map: dict, connections_hr: list[tuple[str, str]], color_validation_joints_hr: list[str],
                  color_range: tuple[tuple[int, int, int], tuple[int, int, int]], lengths_hr: dict, depth_deviations_hr: dict,
@@ -60,6 +60,10 @@ class RGBDto3DPose:
         :param gain: Camera gain settings.
         :param laser_power: Power of the camera's laser for depth sensing.
         :param depth_units: Units for depth measurement.
+        :param alignment: Define alignment method:
+                          0: no alignment, not recommended
+                          1: align depth to color (test first as described in README "Why does the color stream look so weird?")
+                          2: align color to depth (should work properly as suggested by https://github.com/IntelRealSense/librealsense/issues/10438)
         :param decimation_filter: Whether to apply a decimation filter.
         :param depth2disparity: Convert depth to disparity.
         :param spatial_filter: Apply a spatial filter.
@@ -197,7 +201,15 @@ class RGBDto3DPose:
         self.openpose_handler: OpenPoseHandler = None
 
         # define filters
-        self.align = rs.align(rs.stream.color)
+        match alignment:
+            case 0:
+                self.align = helper.NoFilter()
+            case 1:
+                self.align = rs.align(rs.stream.color)
+            case 2:
+                self.align = rs.align(rs.stream.depth)
+            case _:
+                raise ValueError("alignment must be 0, 1 or 2")
         self.decimation_filter = rs.decimation_filter() if decimation_filter else helper.NoFilter()
         self.depth2disparity = rs.disparity_transform(True) if depth2disparity else helper.NoFilter()
         self.spatial_filter = rs.spatial_filter() if spatial_filter else helper.NoFilter()
@@ -335,7 +347,11 @@ class RGBDto3DPose:
         if self.save_bag:
             # setup to record to file
             rs_config.enable_record_to_file(self.filename_bag)
-            pipeline_profile = pipeline.start(rs_config)   # start pipeline
+            try:
+                pipeline_profile = pipeline.start(rs_config)   # start pipeline
+            except RuntimeError as e:
+                e.args = (e.args[0] + "\n Is the configured resolution and fps available for your device? \n If you playback from a bag file, is resolution and fps the same as it was recorded with?",)
+                raise e
             device = pipeline_profile.get_device()
             recorder = device.as_recorder()
             rs.recorder.pause(recorder)
@@ -344,7 +360,11 @@ class RGBDto3DPose:
         else:
             if self.countdown > 0:
                 helper.print_countdown(self.countdown)
-            pipeline_profile = pipeline.start(rs_config)   # start pipeline
+            try:
+                pipeline_profile = pipeline.start(rs_config)  # start pipeline
+            except RuntimeError as e:
+                e.args = (e.args[0] + "\n Is the configured resolution and fps available for your device? \n If you playback from a bag file, is resolution and fps the same as it was recorded with?",)
+                raise e
 
         self.intrinsics = pipeline_profile.get_stream(rs.stream.depth).as_video_stream_profile().get_intrinsics()
 
@@ -437,6 +457,7 @@ class RGBDto3DPose:
         depth_frame = self.temporal_filter.process(depth_frame)
         depth_frame = self.disparity2depth.process(depth_frame)
         depth_frame = self.hole_filling_filter.process(depth_frame)
+
         color_frame = frames.get_color_frame()
 
         # Colorize depth frame to jet colormap

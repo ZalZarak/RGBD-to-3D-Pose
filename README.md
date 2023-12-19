@@ -41,7 +41,8 @@ Here, the main logic is implemented. It receives a RGBD-Stream from a IntelRealS
 playback file. It pushes the RGB-Frame to OpenPose and extracts the 3D-coordinates of the joints using
 the depth information. It translates and rotates those 3d-coordinates as configured and forwards them
 to Simulator to render them into a simple humanoid shape in real-time in PyBullet. It can save the 
-stream or 3D-coordinates of the joints with timestamps to a file for latter replay.
+stream or 3D-coordinates of the joints with timestamps to a file for latter replay. If you want to 
+replay a stream (.bag file), make sure to enter the same resolution and fps as it was recorded with.
 
 It can either run as main process and start Simulator as subprocess or the other way around.
 
@@ -179,3 +180,28 @@ Go to [config_explanation](config/config_explanation.yaml) for a detailed descri
   - Torso has a high deviation, so density can be lower.
   - Balance it to your needs.
 - High densities and high deviations may increase lag (not measured).
+
+### Why does the color stream look so weird?
+
+The reason for that can be found in the alignment configuration: By default (2) the color stream alings 
+to the depth stream. Since the depth-stream has noise/shadows, those parts are black too. 
+Luckily, OpenPose doesn't mind those.   
+
+With my camera model, I also get big black bars at the edges of the color-stream, which is a pity because
+it lowers the viewing angle drastically. I didn't find a solution for this, and I doubt there is one, since
+I can see the same results in the IntelRealSenseViewer.
+
+The alternative is to align depth to color (1) and color will look fine. The problem is that, the 
+deprojection from 2d to 3d (e.g. the 3d joint positions) will become very imprecise in 
+the x- and y- directions. This is a knows issue.   
+This [forum post](https://github.com/IntelRealSense/librealsense/issues/10438) suggests, that the issue is
+fixed if color is aligned to depth.
+
+The issue might not persist with other camera models (especially with newer models). I only noticed this 
+error when I switched my camera.
+
+You can use the "view coordinates" debug mode to show coordinates of some joints. Compare them to the
+coordinates obtained in IntelRealSense Viewer. There enable both depth and color stream and switch to 3d.
+Hover over the joint with the mouse and inspect the coordinates. If both match while aligning depth to color
+(1), using this setting should be fine. Otherwise, align color to depth (2). You may also compre the
+coordinates for this setting.

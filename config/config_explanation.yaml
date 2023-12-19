@@ -59,6 +59,11 @@ RGBDto3DPose:
   depth_units: 0.0005
   # post_processing
   # Refer to the documentation of Intel Depth Cameras / Intel RealSense for more information.
+  # Define alignment method:
+  # 0: no alignment, not recommended
+  # 1: align depth to color (test first as described in README "Why does the color stream look so weird?")
+  # 2: align color to depth (should work properly as suggested by https://github.com/IntelRealSense/librealsense/issues/10438)
+  alignment: 2
   # Whether to apply a decimation filter.
   decimation_filter: false
   # Convert depth to disparity.
@@ -329,7 +334,8 @@ Debug:
   # 0: Debug color mask
   # 1: Debug search area
   # 2: Debug length or depth
-  mode: 1   # 0: color mask, 1: search area, 2: length
+  # 3: View the coordinates of specified joints
+  mode: 2   # 0: color mask, 1: search area, 2: length, 3: view coordinates
   length_args:
     # For debugging length or depth: Choose length (0) or depth (1).
     mode: 0   # 0: length, 1: depth
@@ -339,4 +345,7 @@ Debug:
     custom_connections: null
     # Debug only those connections specified in RGBDto3DPose section except those specified here.
     connections_except: null
+  view_coordinates_args:
+    # Joints to view coordinates for, for mode 3
+    joints_to_show: [ 'RWrist' ]
 
