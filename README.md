@@ -187,9 +187,9 @@ The reason for that can be found in the alignment configuration: By default (2) 
 to the depth stream. Since the depth-stream has noise/shadows, those parts are black too. 
 Luckily, OpenPose doesn't mind those.   
 
-With my camera model, I also get big black bars at the edges of the color-stream, which is a pity because
-it lowers the viewing angle drastically. I didn't find a solution for this, and I doubt there is one, since
-I can see the same results in the IntelRealSenseViewer.
+With my camera model, I also get big black bars at the edges of the color-stream. The depth-stream has a
+wider viewing angle, so that the color stream gets adjusted onto it, e.g. it appears smaller, but it keeps
+its viewing angle.
 
 The alternative is to align depth to color (1) and color will look fine. The problem is that, the 
 deprojection from 2d to 3d (e.g. the 3d joint positions) will become very imprecise in 
