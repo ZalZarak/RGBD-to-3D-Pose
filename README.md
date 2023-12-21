@@ -35,7 +35,7 @@ Runs the code as configured. Either runs from RGBDto3DPose or Simulator or start
 
 Configures the entire pipeline. For the explanation of the different settings visit [config_explanation.yaml](config/config_explanation.yaml)
 
-### [RGBDto3DPose](src/rgbd_to_3d_pose.py)
+### [RGBDto3DPose](src/perceptor.py)
 
 Here, the main logic is implemented. It receives a RGBD-Stream from a IntelRealSense camera or from a 
 playback file. It pushes the RGB-Frame to OpenPose and extracts the 3D-coordinates of the joints using

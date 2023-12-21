@@ -1,12 +1,12 @@
-from src import debug, rgbd_to_3d_pose, simulator
+from src import debug, perceptor, simulator
 from src.config import config
 
 if __name__ == '__main__':
-    if config["run_from"] == 0:
-        rgbd_to_3d_pose.run()
-    elif config["run_from"] == 1:
+    if config["run"] == 0:
+        perceptor.run()
+    elif config["run"] == 1:
         simulator.run()
-    elif config["run_from"] == 2:
+    elif config["run"] == 2:
         if config["Debug"]["mode"] == 0:
             debug.debug_color_mask()
         elif config["Debug"]["mode"] == 1:
@@ -16,4 +16,4 @@ if __name__ == '__main__':
         elif config["Debug"]["mode"] == 3:
             debug.view_coordinates(**config["Debug"]["view_coordinates_args"])
     else:
-        raise ValueError("run_from: 0 or 1, debug mode: 0-3")
+        raise ValueError("run: 0 or 1, debug mode: 0-3")

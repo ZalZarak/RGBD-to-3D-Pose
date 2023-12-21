@@ -1,6 +1,6 @@
-# RGBDto3DPose: 0, Simulator: 1, Debug: 2
+# Perceptor: 0, Simulator: 1, Debug: 2
 run_from: 0
-RGBDto3DPose:
+Perceptor:
   # If playback from a recorded bag instead of streaming from the camera.
   playback: true
   # File to playback from. Ignored if playback == False.
@@ -343,7 +343,7 @@ Debug:
     output_filename: null
     # Override connections and only debug those specified here
     custom_connections: null
-    # Debug only those connections specified in RGBDto3DPose section except those specified here.
+    # Debug only those connections specified in Perceptor section except those specified here.
     connections_except: null
   view_coordinates_args:
     # Joints to view coordinates for, for mode 3

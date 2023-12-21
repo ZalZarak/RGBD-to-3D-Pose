@@ -26,7 +26,7 @@ class Simulator:
                  as_subprocess=False, joints_sync=None, ready_sync=None, done_sync=None, new_joints_sync=None):
         """
         Simulates a humanoid made up of spheres and cylinders from 3D joint positions. Either receives those synchronously from a
-        running RGBDto3DPose process or reads them from a file.
+        running Perceptor process or reads them from a file.
         Current joint positions are stored in self.joints.
         Pybullet IDs of currently valid/invalid limbs are saved in self.limb_list_valid and self.limb_list_invalid.
 
@@ -53,11 +53,11 @@ class Simulator:
         :param limbs: Limbs to simulate. List of lists of the joints they are made up from.
         :param radii: Radii of limbs, in meters.
         :param lengths: Lengths of limbs (for those consisting of two joints), in meters.
-        :param as_subprocess: If this is a subprocess of RGBDto3DPose. If false, RGBDto3DPose is a subprocess of Simulator.
-        :param joints_sync: If this is a subprocess, to exchange joints with RGBDto3DPose, else None. mp.Array('f', np.zeros([25 * 3])), filled out automatically by RGBDto3DPose
-        :param ready_sync: If this is a subprocess, to communicate with RGBDto3DPose when process is ready, else None. mp.Event, filled out automatically by RGBDto3DPose
-        :param done_sync: If this is a subprocess, to communicate with RGBDto3DPose when process has finished, else None. mp.Event, filled out automatically by RGBDto3DPose
-        :param new_joints_sync: If this is a subprocess, to communicate with RGBDto3DPose if there are new joints, else None mp.Event, filled out automatically by RGBDto3DPose
+        :param as_subprocess: If this is a subprocess of Perceptor. If false, Perceptor is a subprocess of Simulator.
+        :param joints_sync: If this is a subprocess, to exchange joints with Perceptor, else None. mp.Array('f', np.zeros([25 * 3])), filled out automatically by Perceptor
+        :param ready_sync: If this is a subprocess, to communicate with Perceptor when process is ready, else None. mp.Event, filled out automatically by Perceptor
+        :param done_sync: If this is a subprocess, to communicate with Perceptor when process has finished, else None. mp.Event, filled out automatically by Perceptor
+        :param new_joints_sync: If this is a subprocess, to communicate with Perceptor if there are new joints, else None mp.Event, filled out automatically by Perceptor
         """
 
         self.playback = playback and not as_subprocess
@@ -90,15 +90,15 @@ class Simulator:
         self.ready_sync = ready_sync
         self.new_joints_sync = new_joints_sync
 
-        # start RGBDto3DPose
+        # start Perceptor
         if not as_subprocess and not playback:
             self.done_sync = mp.Value('b', False)
             self.ready_sync = mp.Event()
             self.joints_sync = mp.Array('f', np.zeros([25 * 3]))
             self.new_joints_sync = mp.Event()
 
-            from . import rgbd_to_3d_pose
-            cl_process = mp.Process(target=rgbd_to_3d_pose.run_as_subprocess,
+            from . import perceptor
+            cl_process = mp.Process(target=perceptor.run_as_subprocess,
                                     args=(simulate_limbs, simulate_joints, simulate_joint_connections, self.done_sync, self.ready_sync, self.joints_sync, self.new_joints_sync))
             cl_process.start()
 
@@ -150,10 +150,10 @@ class Simulator:
                 raise FileNotFoundError("Provide playback file")
 
         if not as_subprocess and not playback:
-            # Wait for RGBDto3DPose to be ready
+            # Wait for Perceptor to be ready
             self.ready_sync.wait()
         elif as_subprocess:
-            # Communicate to RGBDto3DPose that Simulator is ready
+            # Communicate to Perceptor that Simulator is ready
             self.ready_sync.set()
 
     def run(self):
@@ -169,7 +169,7 @@ class Simulator:
 
     def run_sync(self):
         """
-        Run Simulator as configured as main process with RGBDto3DPose as subprocess.
+        Run Simulator as configured as main process with Perceptor as subprocess.
         :return: None
         """
 
@@ -184,7 +184,7 @@ class Simulator:
 
     def process_frame_sync(self):
         """
-        Process one frame. Get the joints from RGBDto3DPose.
+        Process one frame. Get the joints from Perceptor.
         :return: None
         """
 
@@ -373,7 +373,7 @@ def run():
 
 def run_as_subprocess(joints_sync, ready_sync, done_sync, new_joints_sync, simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool):
     """
-    Create Simulator instance with defined config and as subprocess of RGBDto3DPose.
+    Create Simulator instance with defined config and as subprocess of Perceptor.
     :param joints_sync: Synchronized joints, mp.Array('f', np.zeros([25 * 3]))
     :param ready_sync: Synchronized is ready flag, mp.Event
     :param done_sync: Synchronized is done flag, mp.Event

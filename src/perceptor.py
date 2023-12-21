@@ -14,7 +14,7 @@ from src.config import config
 from src.openpose_handler import OpenPoseHandler
 
 
-class RGBDto3DPose:
+class Perceptor:
     def __init__(self, playback: bool, duration: float, playback_file: str | None,
                  resolution: tuple[int, int], fps: int, flip: int, countdown: int,
                  translation: (float, float, float), rotation: (float, float, float),
@@ -80,7 +80,7 @@ class RGBDto3DPose:
         :param joint_3d_transforms: Names of custom transform functions for 3d-joints in custom_3d_joint_transforms.py.
                                     Will be applied in the given order in camera space after extracting 3d coordinates and performing validation.
                                     Visit custom_3d_joint_transforms.py for more information.
-        :param start_simulator: If Simulator should start as separate process from here. Otherwise, Simulator should start a RGBDto3DPose process.
+        :param start_simulator: If Simulator should start as separate process from here. Otherwise, Simulator should start a Perceptor process.
         :param joints_sync: If this is a subprocess, to exchange joints with Simulator, else None. mp.Array('f', np.zeros([25 * 3])), filled out automatically by Simulator
         :param ready_sync: If this is a subprocess, to communicate with Simulator when process is ready, else None. mp.Event, filled out automatically by Simulator
         :param done_sync: If this is a subprocess, to communicate with Simulator when process has finished, else None. mp.Event, filled out automatically by Simulator
@@ -601,17 +601,17 @@ class RGBDto3DPose:
 
 def run():
     """
-    Create RGBDto3DPose instance with defined config and run it as main process.
+    Create Perceptor instance with defined config and run it as main process.
     :return: None
     """
 
-    cl = RGBDto3DPose(**config["RGBDto3DPose"])
+    cl = Perceptor(**config["Perceptor"])
     cl.run()
 
 
 def run_as_subprocess(simulate_limbs, simulate_joints, simulate_joint_connections, done_sync, ready_sync, joints_sync, new_joints_sync):
     """
-    Create RGBDto3DPose instance with defined config and as subprocess of Simulator.
+    Create Perceptor instance with defined config and as subprocess of Simulator.
 
     :param simulate_limbs: If limbs are simulated
     :param simulate_joints: If joints are simulated
@@ -623,18 +623,18 @@ def run_as_subprocess(simulate_limbs, simulate_joints, simulate_joint_connection
     :return: None
     """
 
-    config_RGBDto3DPose = config["RGBDto3DPose"]
-    config_RGBDto3DPose["playback"] = False
-    config_RGBDto3DPose["simulate_limbs"] = simulate_limbs
-    config_RGBDto3DPose["simulate_joints"] = simulate_joints
-    config_RGBDto3DPose["simulate_joint_connections"] = simulate_joint_connections
-    config_RGBDto3DPose["start_simulator"] = False
-    config_RGBDto3DPose["joints_sync"] = joints_sync
-    config_RGBDto3DPose["ready_sync"] = ready_sync
-    config_RGBDto3DPose["done_sync"] = done_sync
-    config_RGBDto3DPose["new_joints_sync"] = new_joints_sync
+    config_perceptor = config["Perceptor"]
+    config_perceptor["playback"] = False
+    config_perceptor["simulate_limbs"] = simulate_limbs
+    config_perceptor["simulate_joints"] = simulate_joints
+    config_perceptor["simulate_joint_connections"] = simulate_joint_connections
+    config_perceptor["start_simulator"] = False
+    config_perceptor["joints_sync"] = joints_sync
+    config_perceptor["ready_sync"] = ready_sync
+    config_perceptor["done_sync"] = done_sync
+    config_perceptor["new_joints_sync"] = new_joints_sync
 
-    cl = RGBDto3DPose(**config_RGBDto3DPose)
+    cl = Perceptor(**config_perceptor)
     cl.run()
 
 

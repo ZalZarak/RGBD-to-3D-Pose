@@ -10,16 +10,16 @@ import pandas as pd
 import pyrealsense2 as rs
 
 from src import helper
-from src.rgbd_to_3d_pose import RGBDto3DPose
+from src.perceptor import Perceptor
 from src.config import config
 
 color_ranges = {
-    "upper blue": config["RGBDto3DPose"]["color_range"][1][0],
-    "upper green": config["RGBDto3DPose"]["color_range"][1][1],
-    "upper red": config["RGBDto3DPose"]["color_range"][1][2],
-    "lower blue": config["RGBDto3DPose"]["color_range"][0][0],
-    "lower green": config["RGBDto3DPose"]["color_range"][0][1],
-    "lower red": config["RGBDto3DPose"]["color_range"][0][2],
+    "upper blue": config["Perceptor"]["color_range"][1][0],
+    "upper green": config["Perceptor"]["color_range"][1][1],
+    "upper red": config["Perceptor"]["color_range"][1][2],
+    "lower blue": config["Perceptor"]["color_range"][0][0],
+    "lower green": config["Perceptor"]["color_range"][0][1],
+    "lower red": config["Perceptor"]["color_range"][0][2],
 }
 
 # Define the font settings
@@ -80,11 +80,11 @@ def debug_color_mask():
     print_button = tk.Button(gui, text="Print", command=print_values)
     print_button.pack(side=tk.BOTTOM, anchor=tk.SE)
 
-    debug_config = copy.deepcopy(config["RGBDto3DPose"])
+    debug_config = copy.deepcopy(config["Perceptor"])
     debug_config["save_joints"] = debug_config["save_bag"] = debug_config["show_rgb"] = debug_config["show_depth"] = debug_config["show_joints"] \
         = debug_config["show_color_mask"] = debug_config["simulate_limbs"] = debug_config["simulate_joints"] = debug_config["simulate_joint_connections"] = False
     debug_config["alignment"] = 0
-    cl = RGBDto3DPose(**debug_config)
+    cl = Perceptor(**debug_config)
 
     cl.prepare()
 
@@ -113,11 +113,11 @@ def debug_color_mask():
 def debug_search_area():
     # mode 0: length, mode 1: depth, mode 2: search area
 
-    debug_config = copy.deepcopy(config["RGBDto3DPose"])
+    debug_config = copy.deepcopy(config["Perceptor"])
     debug_config["save_joints"] = debug_config["save_bag"] = debug_config["show_rgb"] = debug_config["show_depth"] \
         = debug_config["show_color_mask"] = debug_config["simulate_limbs"] = debug_config["simulate_joints"] = debug_config["simulate_joint_connections"] = False
     debug_config["show_joints"] = True
-    cl = RGBDto3DPose(**debug_config)
+    cl = Perceptor(**debug_config)
     cl.prepare()
 
     def update_slider(var_name, value_idx):
@@ -244,12 +244,12 @@ def debug_length(mode: int, output_filename: str = None, custom_connections=None
     assert mode in (0, 1), "mode is 0 or 1."
     assert connections_except is None or custom_connections is None, "Don't input connections_except and custom_connections at the same time"
 
-    debug_config = copy.deepcopy(config["RGBDto3DPose"])
+    debug_config = copy.deepcopy(config["Perceptor"])
     debug_config["save_joints"] = debug_config["save_bag"] = debug_config["show_rgb"] = debug_config["show_depth"] \
         = debug_config["show_color_mask"] = debug_config["simulate_limbs"] = debug_config["simulate_joints"] = debug_config[
         "simulate_joint_connections"] = False
     debug_config["show_joints"] = True
-    cl = RGBDto3DPose(**debug_config)
+    cl = Perceptor(**debug_config)
     cl.prepare()
 
 
@@ -500,12 +500,12 @@ def debug_length(mode: int, output_filename: str = None, custom_connections=None
 
 def view_coordinates(joints_to_show: list[str]):
 
-    debug_config = copy.deepcopy(config["RGBDto3DPose"])
+    debug_config = copy.deepcopy(config["Perceptor"])
     debug_config["save_joints"] = debug_config["save_bag"] = debug_config["show_rgb"] = debug_config["show_depth"] \
         = debug_config["show_color_mask"] = debug_config["simulate_limbs"] = debug_config["simulate_joints"] = debug_config[
         "simulate_joint_connections"] = False
     debug_config["show_joints"] = True
-    cl = RGBDto3DPose(**debug_config)
+    cl = Perceptor(**debug_config)
     cl.prepare()
 
     joints_to_show = [cl.joint_map[j] for j in joints_to_show]

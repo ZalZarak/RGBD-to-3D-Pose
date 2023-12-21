@@ -1,18 +1,18 @@
-run_from: 0   # RGBDto3DPose: 0, Simulator: 1, Debug: 2
-RGBDto3DPose:
+run: 0   # Perceptor: 0, Simulator: 1, Debug: 2
+Perceptor:
   playback: false
   playback_file: res/test.bag
   duration: -1
   countdown: -1
   # saving
-  savefile_prefix: null
+  savefile_prefix: "training_1"
   save_joints: false
   save_bag: false
   # show
   show_rgb: true
   show_depth: true
   show_joints: true
-  show_color_mask: true
+  show_color_mask: false
   # simulate
   simulate_limbs: true
   simulate_joints: false
@@ -21,7 +21,7 @@ RGBDto3DPose:
   resolution: [640, 480]
   fps: 30
   flip: 0
-  translation: [0, 1, 0]
+  translation: [0.23, 0.4, -2.48]
   rotation: [0, 0, 0]
   # depth_settings
   visual_preset: "High Density"
@@ -90,7 +90,7 @@ RGBDto3DPose:
     - [ 'RAnkle', 'RBigToe' ]
     - [ 'LAnkle', 'LBigToe' ]
   color_validation_joints_hr: [RWrist, LWrist]
-  color_range: [ [0, 75, 0], [255, 255, 53] ]
+  color_range: [ [0, 64, 0], [109, 255, 23] ]
   lengths_hr:   # must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
     Nose-Neck: [0.17, 0.27]
     Nose-LEye: [0.03, 0.06]
@@ -180,8 +180,8 @@ OpenPoseHandler:
 Simulator:
   start_pybullet: true
   playback: true
-  playback_file: "res/test_joints.pkl"
-  playback_mode: 1
+  playback_file: "res/training_1_joints.pkl"
+  playback_mode: 1    # 0: normal, 1: real-time, 2: step-by-step
   frame_duration: 0.05
   simulate_limbs: True
   simulate_joints: False
