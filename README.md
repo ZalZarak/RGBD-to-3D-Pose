@@ -1,4 +1,4 @@
-# RGBD to 3D Pose
+# RGBD-to-3D-Pose
 
 ## What is this repository about?
 
@@ -29,13 +29,13 @@ It may work for your purpose too. Feel free to use it.
 
 ### [Main](src/main.py)
 
-Runs the code as configured. Either runs from RGBDto3DPose or Simulator or starts the debug tools.
+Runs the code as configured. Either runs Perceptor or Simulator or starts the debug tools.
 
 ### [Config](src/config.py)
 
 Configures the entire pipeline. For the explanation of the different settings visit [config_explanation.yaml](config/config_explanation.yaml)
 
-### [RGBDto3DPose](src/perceptor.py)
+### [Perceptor](src/perceptor.py)
 
 Here, the main logic is implemented. It receives a RGBD-Stream from a IntelRealSense camera or from a 
 playback file. It pushes the RGB-Frame to OpenPose and extracts the 3D-coordinates of the joints using
@@ -49,20 +49,20 @@ It can either run as main process and start Simulator as subprocess or the other
 Now, some joints might be occluded by objects in front of them but still recognized by OpenPose, which
 would produce inaccurate 3D-Positions (with the depth of the object instead of the joint).   
 The program performs the following to increase accuracy:
-- It validates each joint through the connections defined in the config under _RGBDto3DPose/connections_hr_.
+- It validates each joint through the connections defined in the config under _Perceptor/connections_hr_.
   A joint is marked as valid, if it validates through at least one of its connections
-- Each connection has a defined accepted length range under _RGBDto3DPose/lengths_hr_ and a maximal depth
-  deviation under _RGBDto3DPose/depth_hr_.   
+- Each connection has a defined accepted length range under _Perceptor/lengths_hr_ and a maximal depth
+  deviation under _Perceptor/depth_hr_.   
   - The length is valid if the distance between the joints is within the range. The depth deviation is 
   valid if the z-length (abs(joint1[z]-joint2[z])) is not higher than the maximum depth deviation.   
   - The connection is valid if length __and__ depth are valid.
-- You can define a color range under RGBDto3DPose/color_range and define applicable joints under RGBDto3DPose/color_validation_joints_hr.
+- You can define a color range under Perceptor/color_range and define applicable joints under Perceptor/color_validation_joints_hr.
   - If the pixel's color, where the joint is, is within the color range, it is marked as valid without
   validation. This is useful if you know the color of certain joints, f.e. if you wear green gloves.
   - The color range must be set precisely and barely mark pixels as within the range which do not belong
   to the associated limb. It is very different in different lighting situations and is influenced by the time of day, 
   season and cloud cover, among other things.
-- To increase robustness, you can define a search area for each joint under _RGBDto3DPose/search_areas_hr_.
+- To increase robustness, you can define a search area for each joint under _Perceptor/search_areas_hr_.
   - The search area is defined by a tuple (d, s). The search area is a square with the length 2d+1
     centered at the pixel in question. s determines the skip/density, e.g. only each s'th pixel will be in the
     search area.
@@ -78,7 +78,7 @@ Unvalidated joints will be set to (0,0,0).
 ### [Simulator](src/simulator.py)
 
 The Simulator simulates the humanoid in 3D with simple spheres and cylinders. It either receives them
-from RGBDto3DPose in real-time or from a file.    
+from Perceptor in real-time or from a file.    
 It can be integrated into other programs. Collision detection works between the humanoid and other
 objects. The collision humanoid collision filter group mask is (-1, 1, 0).   
 Current joint positions are saved in self.joints.
@@ -92,7 +92,7 @@ Pybullet IDs of currently valid/invalid limbs are saved in self.limb_list_valid 
 ### [OpenPoseHandler](src/openpose_handler.py)
 
 Extract human joint positions from RGBD-Frames. For best results it should receive an upright frame, 
-this can be set in the config under RGBDto3DPose/flip.
+this can be set in the config under Perceptor/flip.
 
 Insert the paths of your OpenPose installation under OpenPoseHandler in the config.
 
@@ -106,7 +106,7 @@ The debug mode offers visualization for the lengths and depths between joints, t
 search areas and a GUI to set those. 
 
 Different modes can be configured in the config under Debug. It takes all other necessary 
-configuration from RGBDto3DPose. 
+configuration from Perceptor. 
 
 For length and depth it will give you some statistics about meausured length/depth per joint. This is
 just meant as help. 
