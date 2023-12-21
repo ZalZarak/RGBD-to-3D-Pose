@@ -107,7 +107,7 @@ def debug_color_mask():
             key = cv2.waitKey(1)
     finally:
         cv2.destroyAllWindows()
-        cl.pipeline.stop()
+        cl.rs_pipeline.stop()
 
 
 def debug_search_area():
@@ -234,7 +234,7 @@ def debug_search_area():
             key = cv2.waitKey(1)
     finally:
         cv2.destroyAllWindows()
-        cl.pipeline.stop()
+        cl.rs_pipeline.stop()
 
 
 def debug_length(mode: int, output_filename: str = None, custom_connections=None, connections_except=None):
@@ -417,7 +417,7 @@ def debug_length(mode: int, output_filename: str = None, custom_connections=None
             key = cv2.waitKey(1)
     finally:
         cv2.destroyAllWindows()
-        cl.pipeline.stop()
+        cl.rs_pipeline.stop()
 
         stats = {}
         for name, l in lengths.items():
@@ -543,4 +543,4 @@ def view_coordinates(joints_to_show: list[str]):
             key = cv2.waitKey(1)
     finally:
         cv2.destroyAllWindows()
-        cl.pipeline.stop()
+        cl.rs_pipeline.stop()

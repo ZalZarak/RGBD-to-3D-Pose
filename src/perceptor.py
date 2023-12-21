@@ -197,7 +197,7 @@ class Perceptor:
         self.start_time = -1
 
         self.intrinsics = None
-        self.pipeline = None
+        self.rs_pipeline = None
         self.openpose_handler: OpenPoseHandler = None
 
         # define filters
@@ -301,7 +301,7 @@ class Perceptor:
             if self.simulate:
                 self.done_sync.value = True     # tell Simulator to stop
             cv2.destroyAllWindows()
-            self.pipeline.stop()
+            self.rs_pipeline.stop()
             if self.save_joints:    # save joints
                 with open(self.filename_joints, 'wb') as file:
                     pickle.dump(self.joints_save, file)
@@ -333,7 +333,7 @@ class Perceptor:
             self.openpose_handler = OpenPoseHandler()
 
         # Initialize the RealSense pipeline
-        pipeline = rs.pipeline()
+        rs_pipeline = rs.pipeline()
         rs_config = rs.config()
 
         if self.playback:
@@ -348,7 +348,7 @@ class Perceptor:
             # setup to record to file
             rs_config.enable_record_to_file(self.filename_bag)
             try:
-                pipeline_profile = pipeline.start(rs_config)   # start pipeline
+                pipeline_profile = rs_pipeline.start(rs_config)   # start pipeline
             except RuntimeError as e:
                 e.args = (e.args[0] + "\n Is the configured resolution and fps available for your device? \n If you playback from a bag file, is resolution and fps the same as it was recorded with?",)
                 raise e
@@ -361,7 +361,7 @@ class Perceptor:
             if self.countdown > 0:
                 helper.print_countdown(self.countdown)
             try:
-                pipeline_profile = pipeline.start(rs_config)  # start pipeline
+                pipeline_profile = rs_pipeline.start(rs_config)  # start pipeline
             except RuntimeError as e:
                 e.args = (e.args[0] + "\n Is the configured resolution and fps available for your device? \n If you playback from a bag file, is resolution and fps the same as it was recorded with?",)
                 raise e
@@ -379,7 +379,7 @@ class Perceptor:
             depth_sensor.set_option(rs.option.laser_power, self.laser_power)
             depth_sensor.set_option(rs.option.depth_units, self.depth_units)
 
-        self.pipeline = pipeline
+        self.rs_pipeline = rs_pipeline
 
         if self.simulate and not self.start_simulator:
             # communicate that process is ready to simulator if this is subprocess
@@ -443,7 +443,7 @@ class Perceptor:
         """
 
         # Wait for the next set of frames from the camera
-        frames = self.pipeline.wait_for_frames()
+        frames = self.rs_pipeline.wait_for_frames()
         t = time.time()     # save the time the frames were received at
         frames = self.align.process(frames)
 
@@ -559,7 +559,7 @@ class Perceptor:
         # search around the joint for the right depth e.g. where it validates through one connection
         # if found, define the 3d coordinate of this joint by original x,y and the found depth
         # try correcting until no joint was corrected
-        # theoretically it might run into infinity loop, but it always ran smoothly
+        # might theoretically take up to 26 iterations, but it always ran smoothly. Barely exceeded 3 iterations.
         change = True
         while change:
             change = False
