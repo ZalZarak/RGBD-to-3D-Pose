@@ -352,9 +352,16 @@ def debug_length(mode: int, output_filename: str = None, custom_connections=None
 
     connections = cl.connections
     if custom_connections is not None:
-        connections = custom_connections
+        connections = [(cl.joint_map[i[0]], cl.joint_map[i[1]]) for i in custom_connections]
     elif connections_except is not None:
+        connections_except = [(cl.joint_map[i[0]], cl.joint_map[i[1]]) for i in connections_except]
         connections = [c for c in connections if c not in connections_except]
+
+    if len(connections) == 1:
+        global font_scale
+        global font_thickness
+        font_scale *= 3
+        font_thickness *= 2
 
     key = None
     try:

@@ -5,7 +5,7 @@ Perceptor:
   duration: -1
   countdown: -1
   # saving
-  savefile_prefix: "training_1"
+  savefile_prefix: "training_2"
   save_joints: false
   save_bag: false
   # show
@@ -21,7 +21,7 @@ Perceptor:
   resolution: [640, 480]
   fps: 30
   flip: 0
-  translation: [0.23, 0.4, -2.48]
+  translation: [0.26, 0.4, -2.48]
   rotation: [0, 0, 0]
   # depth_settings
   visual_preset: "High Density"
@@ -90,32 +90,32 @@ Perceptor:
     - [ 'RAnkle', 'RBigToe' ]
     - [ 'LAnkle', 'LBigToe' ]
   color_validation_joints_hr: [RWrist, LWrist]
-  color_range: [ [0, 64, 0], [109, 255, 23] ]
+  color_range: [ [0, 70, 0], [109, 255, 23] ]
   lengths_hr:   # must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
-    Nose-Neck: [0.17, 0.27]
-    Nose-LEye: [0.03, 0.06]
-    Nose-REye: [0.03, 0.06]
-    LEye-LEar: [0.07, 0.12]  # with this deviation down it will invalidate front view of face but make it robuster to occlusion. If front, eye detection should work
-    REye-REar: [0.07, 0.12]
-    Neck-LShoulder: [0.15, 0.21]
-    Neck-RShoulder: [0.15, 0.21]
-    LShoulder-LElbow: [0.27, 0.36]
-    RShoulder-RElbow: [0.27, 0.36]
+    Nose-Neck: [0.18, 0.26]
+    Nose-LEye: [0.04, 0.07]
+    Nose-REye: [0.04, 0.07]
+    LEye-LEar: [0.09, 0.14]  # with this deviation down it will invalidate front view of face but make it robuster to occlusion. If front, eye detection should work
+    REye-REar: [0.09, 0.14]
+    Neck-LShoulder: [0.16, 0.24]
+    Neck-RShoulder: [0.16, 0.24]
+    LShoulder-LElbow: [0.27, 0.34]
+    RShoulder-RElbow: [0.27, 0.34]
     LElbow-LWrist: [0.26, 0.32]
-    RElbow-RWrist: [0.26, 0.32]
-    Neck-MidHip: [0.46, 0.595]
-    MidHip-LHip: [0.1, 0.13]
-    MidHip-RHip: [0.1, 0.13]
-    LHip-LKnee: [0.38, 0.49]
-    RHip-RKnee: [0.38, 0.49]
+    RElbow-RWrist: [0.26 , 0.32]
+    Neck-MidHip: [0.50, 0.63]
+    MidHip-LHip: [0.11, 0.15]
+    MidHip-RHip: [0.11, 0.15]
+    LHip-LKnee: [0.40, 0.49]
+    RHip-RKnee: [0.40, 0.49]
     LKnee-LAnkle: [0.44, 0.51]
     RKnee-RAnkle: [0.44, 0.51]
     LAnkle-LBigToe: [0.15, 0.21]
     RAnkle-RBigToe: [0.15, 0.21]
   depth_deviations_hr:  # must be: for all 'j1-j2': joint_map[j1] < joint_map[j2]
     Nose-Neck: 0.2
-    Nose-LEye: 0.04
-    Nose-REye: 0.04
+    Nose-LEye: 0.05
+    Nose-REye: 0.05
     LEye-LEar: 0.07  # with this deviation down it will invalidate front view of face but make it robuster to occlusion. If front, eye detection should work
     REye-REar: 0.07
     Neck-LShoulder: 0.17
@@ -134,32 +134,32 @@ Perceptor:
     LAnkle-LBigToe: -1
     RAnkle-RBigToe: -1
   search_areas_hr:  # [deviation, skip] in pixels
-    Nose: [ 8, 3 ]
-    Neck: [ 12, 3 ]
-    RShoulder: [ 9, 1 ]
-    RElbow: [ 9, 1 ]
-    RWrist: [ 9, 1 ]
-    LShoulder: [ 9, 1 ]
-    LElbow: [ 9, 1 ]
-    LWrist: [ 9, 1 ]
-    MidHip: [ 15, 3 ]
-    RHip: [ 8, 3 ]
-    RKnee: [ 5, 4 ]
-    RAnkle: [ 4, 3 ]
-    LHip: [ 8, 3 ]
-    LKnee: [ 5, 4 ]
-    LAnkle: [ 4, 3 ]
-    REye: [ 0, 0 ]
-    LEye: [ 0, 0 ]
-    REar: [ 0, 0 ]
-    LEar: [ 0, 0 ]
-    LBigToe: [ 0, 0 ]
-    LSmallToe: [ 0, 0 ]
-    LHeel: [ 0, 0 ]
-    RBigToe: [ 0, 0 ]
-    RSmallToe: [ 0, 0 ]
-    RHeel: [ 0, 0 ]
-    Background: [ 0, 0 ]
+    Nose: [8, 1]
+    Neck: [16, 2]
+    RShoulder: [9, 0]
+    RElbow: [9, 0]
+    RWrist: [9, 0]
+    LShoulder: [9, 0]
+    LElbow: [9, 0]
+    LWrist: [9, 0]
+    MidHip: [16, 2]
+    RHip: [8, 3]
+    RKnee: [5, 4]
+    RAnkle: [0, 0]
+    LHip: [8, 3]
+    LKnee: [5, 4]
+    LAnkle: [0, 0]
+    REye: [0, 0]
+    LEye: [0, 0]
+    REar: [0, 0]
+    LEar: [0, 0]
+    LBigToe: [0, 0]
+    LSmallToe: [0, 0]
+    LHeel: [0, 0]
+    RBigToe: [0, 0]
+    RSmallToe: [0, 0]
+    RHeel: [0, 0]
+    Background: [0, 0]
   joint_3d_transforms: ["estimate_nose_from_head_joints"]
 OpenPoseHandler:
   # Ubuntu
