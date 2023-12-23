@@ -205,3 +205,18 @@ coordinates obtained in IntelRealSense Viewer. There enable both depth and color
 Hover over the joint with the mouse and inspect the coordinates. If both match while aligning depth to color
 (1), using this setting should be fine. Otherwise, align color to depth (2). You may also compre the
 coordinates for this setting.
+
+### How to generate geometry separately?
+
+This is useful, if you have your own methods to generate, track geometry and don't want to rewrite your code.
+
+1. Set ```build_geometry``` to ```False```
+2. For each limb: Generate it. Let ```p_id``` be the pybullet object id of this limb.
+3. Set ```limbs_pb``` dict at ```(joint_id, )``` for spheres and ```(joint_id_1, joint_id_2)``` for cylinders
+to ```p_id```. You may use ```joint_map``` in the config for that, which is also saved under the same name
+in Simulator object. For RWrist and RElbow it would look like 
+```simulator.limbs_pb[(simulator.joint_map["RElbow"], simulator.joint_map["RWrist"])] = p_id```.   
+__Make very sure, that ```joint_id_1 < joint_id_2```__.   
+````lengths, radii, limbs```` from the config are also saved under the same name in simulator object.
+4. Set the Collision Filter Group Mask to ```(-1, 1, 0)``` for limbs:   
+```p.setCollisionFilterGroupMask(p_id, -1, 1, 0)```

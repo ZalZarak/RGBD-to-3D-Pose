@@ -19,7 +19,7 @@ def is_joint_valid(joint: np.ndarray):
 
 class Simulator:
 
-    def __init__(self, start_pybullet: bool, playback: bool, playback_file: str | None, playback_mode: int, frame_duration: float,
+    def __init__(self, start_pybullet: bool, build_geometry: bool, playback: bool, playback_file: str | None, playback_mode: int, frame_duration: float,
                  simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool,
                  move_in_physic_sim: bool, min_distance_to_move_outside_physic_sim: float, time_delta_move_in_physic_sim: float,
                  joint_map: dict, limbs: list[tuple[str, str]], radii: dict, lengths: dict,
@@ -31,6 +31,8 @@ class Simulator:
         Pybullet IDs of currently valid/invalid limbs are saved in self.limb_list_valid and self.limb_list_invalid.
 
         :param start_pybullet: If this process should start PyBullet. True if standalone, False if integrated into another program which uses PyBullet.
+        :param build_geometry: If this process should build geometry. If false, generate it yourself and set self.limbs_pb and p.setCollisionFilterGroupMask
+                               accordingly. Consider the code part and the README for that.
         :param playback: If Simulator should read joints from provided file.
         :param playback_file: File to read joints from
         :param playback_mode: 0: normal mode, simulate each frame for [frame_duration] sec.
@@ -84,6 +86,10 @@ class Simulator:
                 self.joint_list.append(j)
         self.joint_list = set(self.joint_list)
         self.debug_lines = []
+        self.joint_map = joint_map
+        self.limbs = limbs
+        self.radii = radii
+        self.lengths = lengths
         self.joints = None  # stores current joints with axis in pybullet format
         self.joints_sync = joints_sync
         self.done_sync = done_sync
@@ -112,28 +118,29 @@ class Simulator:
                                      cameraTargetPosition=[0, 0, 0])
 
         self.limbs_pb = {}  # maps config ids of limbs to pybullet object ids
-        if simulate_limbs:
-            # pregenerate geometry
-            for limb in limbs:
-                if len(limb) == 1:  # if this limb has only one point, like head or hand, it's simulated with a sphere
-                    visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=radii[limb[0]], rgbaColor=[0, 0, 0, 0])
-                    collision_shape = p.createCollisionShape(p.GEOM_SPHERE, radius=radii[limb[0]])
-                    body_id = p.createMultiBody(baseMass=-1, baseVisualShapeIndex=visual_shape, baseCollisionShapeIndex=collision_shape, basePosition=[0, 0, 0])
-                    self.limbs_pb[(joint_map[limb[0]],)] = body_id
-                elif len(limb) == 2: # if this limb has two points, like head or hand, it's simulated with a cylinder
-                    limb_str = f"{limb[0]}-{limb[1]}"
-                    visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii[limb_str], length=lengths[limb_str], rgbaColor=[0, 0, 0, 0])
-                    collision_shape = p.createCollisionShape(p.GEOM_CYLINDER, radius=radii[limb_str], height=lengths[limb_str])
-                    body_id = p.createMultiBody(baseMass=-1, baseVisualShapeIndex=visual_shape, baseCollisionShapeIndex=collision_shape, basePosition=[0, 0, 0])
-                    if joint_map[limb[0]] >= joint_map[limb[1]]:
-                        raise ValueError(f"limbs: for all tuples (a,b): joint_map[a] < joint_map[b], but joint_map[{limb[0]}] >= joint_map[{limb[1]}]")
-                    self.limbs_pb[(joint_map[limb[0]], joint_map[limb[1]])] = body_id
-                else:
-                    raise ValueError(f"limbs: no connections between more then two joints: {limb}")
+        if build_geometry:
+            if simulate_limbs:
+                # pregenerate geometry
+                for limb in limbs:
+                    if len(limb) == 1:  # if this limb has only one point, like head or hand, it's simulated with a sphere
+                        visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=radii[limb[0]], rgbaColor=[0, 0, 0, 0])
+                        collision_shape = p.createCollisionShape(p.GEOM_SPHERE, radius=radii[limb[0]])
+                        body_id = p.createMultiBody(baseMass=-1, baseVisualShapeIndex=visual_shape, baseCollisionShapeIndex=collision_shape, basePosition=[0, 0, 0])
+                        self.limbs_pb[(joint_map[limb[0]],)] = body_id
+                    elif len(limb) == 2: # if this limb has two points, like head or hand, it's simulated with a cylinder
+                        limb_str = f"{limb[0]}-{limb[1]}"
+                        visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=radii[limb_str], length=lengths[limb_str], rgbaColor=[0, 0, 0, 0])
+                        collision_shape = p.createCollisionShape(p.GEOM_CYLINDER, radius=radii[limb_str], height=lengths[limb_str])
+                        body_id = p.createMultiBody(baseMass=-1, baseVisualShapeIndex=visual_shape, baseCollisionShapeIndex=collision_shape, basePosition=[0, 0, 0])
+                        if joint_map[limb[0]] >= joint_map[limb[1]]:
+                            raise ValueError(f"limbs: for all tuples (a,b): joint_map[a] < joint_map[b], but joint_map[{limb[0]}] >= joint_map[{limb[1]}]")
+                        self.limbs_pb[(joint_map[limb[0]], joint_map[limb[1]])] = body_id
+                    else:
+                        raise ValueError(f"limbs: no connections between more then two joints: {limb}")
 
-        # set collision filter so that limbs don't collide
-        for body1 in self.limbs_pb.values():
-            p.setCollisionFilterGroupMask(body1, -1, 1, 0)
+            # set collision filter so that limbs don't collide
+            for body1 in self.limbs_pb.values():
+                p.setCollisionFilterGroupMask(body1, -1, 1, 0)
 
         if self.simulate_joints:
             self.joints_pb = {}

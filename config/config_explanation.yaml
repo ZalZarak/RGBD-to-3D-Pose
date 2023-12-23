@@ -226,6 +226,9 @@ OpenPoseHandler:
 Simulator:
   # If this process should start PyBullet. True if standalone, False if integrated into another program which uses PyBullet.
   start_pybullet: true
+  # If this process should build geometry. If false, generate it yourself and set self.limbs_pb and p.setCollisionFilterGroupMask
+  # accordingly. Consider the code part and the README for that.
+  build_geometry: true
   # If Simulator should read joints from provided file.
   playback: true
   # File to read joints from
