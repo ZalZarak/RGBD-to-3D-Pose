@@ -22,7 +22,7 @@ class Perceptor:
                  show_rgb: bool, show_depth: bool, show_joints: bool, show_color_mask: bool,
                  simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool,
                  visual_preset: str, exposure: int, gain: int, laser_power: int, depth_units: float,
-                 alignment: int, decimation_filter: bool, depth2disparity: bool, spatial_filter: bool,
+                 alignment: int, depth2disparity: bool, spatial_filter: bool,
                  temporal_filter: bool, disparity2depth: bool, hole_filling_filter: int,
                  joint_map: dict, connections_hr: list[tuple[str, str]], color_validation_joints_hr: list[str],
                  color_range: tuple[tuple[int, int, int], tuple[int, int, int]], lengths_hr: dict, depth_deviations_hr: dict,
@@ -210,7 +210,6 @@ class Perceptor:
                 self.align = rs.align(rs.stream.depth)
             case _:
                 raise ValueError("alignment must be 0, 1 or 2")
-        self.decimation_filter = rs.decimation_filter() if decimation_filter else helper.NoFilter()
         self.depth2disparity = rs.disparity_transform(True) if depth2disparity else helper.NoFilter()
         self.spatial_filter = rs.spatial_filter() if spatial_filter else helper.NoFilter()
         self.temporal_filter = rs.temporal_filter() if temporal_filter else helper.NoFilter()
@@ -451,7 +450,6 @@ class Perceptor:
         depth_frame = frames.get_depth_frame()
 
         # apply filters as defined
-        depth_frame = self.decimation_filter.process(depth_frame)
         depth_frame = self.depth2disparity.process(depth_frame)
         depth_frame = self.spatial_filter.process(depth_frame)
         depth_frame = self.temporal_filter.process(depth_frame)

@@ -1,6 +1,6 @@
 run: 0   # Perceptor: 0, Simulator: 1, Debug: 2
 Perceptor:
-  playback: false
+  playback: true
   playback_file: res/test.bag
   duration: -1
   countdown: -1
@@ -14,11 +14,11 @@ Perceptor:
   show_joints: true
   show_color_mask: false
   # simulate
-  simulate_limbs: true
+  simulate_limbs: false
   simulate_joints: false
   simulate_joint_connections: false
   # camera
-  resolution: [640, 480]
+  resolution: [480, 270]
   fps: 30
   flip: 0
   translation: [0.26, 0.4, -2.48]
@@ -34,7 +34,6 @@ Perceptor:
   # 1: depth to color (test first as described in README "Why does the color stream look so weird?")
   # 2: color to depth
   alignment: 2
-  decimation_filter: false
   depth2disparity: true
   spatial_filter: true
   temporal_filter: true
@@ -181,9 +180,9 @@ Simulator:
   start_pybullet: true
   build_geometry: true
   playback: true
-  playback_file: "res/training_1_joints.pkl"
-  playback_mode: 1    # 0: normal, 1: real-time, 2: step-by-step
-  frame_duration: 0.05
+  playback_file: "res/training_2_joints.pkl"
+  playback_mode: 0    # 0: normal, 1: real-time, 2: step-by-step
+  frame_duration: 0.001
   simulate_limbs: True
   simulate_joints: False
   simulate_joint_connections: False

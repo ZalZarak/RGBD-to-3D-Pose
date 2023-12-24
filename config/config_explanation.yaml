@@ -64,8 +64,6 @@ Perceptor:
   # 1: align depth to color (test first as described in README "Why does the color stream look so weird?")
   # 2: align color to depth (should work properly as suggested by https://github.com/IntelRealSense/librealsense/issues/10438)
   alignment: 2
-  # Whether to apply a decimation filter.
-  decimation_filter: false
   # Convert depth to disparity.
   depth2disparity: true
   # Apply a spatial filter.
@@ -74,7 +72,7 @@ Perceptor:
   temporal_filter: true
   # Convert disparity back to depth.
   disparity2depth: true
-  # Level of hole filling filter to apply. It is recommended to enable one.
+  # Level of hole filling filter to apply. It is recommended to disable it, when using color validation.
   hole_filling_filter: -1
   # validation
   # Maps joint names to openpose indices.
