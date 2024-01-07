@@ -3,10 +3,12 @@ import pickle
 import time
 
 import numpy as np
+import pandas as pd
 import pybullet as p
 
 import multiprocessing as mp
 
+from src import helper
 from src.config import config
 
 
@@ -18,9 +20,8 @@ def is_joint_valid(joint: np.ndarray):
 
 
 class Simulator:
-
     def __init__(self, start_pybullet: bool, build_geometry: bool, playback: bool, playback_file: str | None, playback_mode: int, frame_duration: float,
-                 simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool,
+                 save_performance_file: str, simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool,
                  move_in_physic_sim: bool, min_distance_to_move_outside_physic_sim: float, time_delta_move_in_physic_sim: float,
                  joint_map: dict, limbs: list[tuple[str, str]], radii: dict, lengths: dict,
                  as_subprocess=False, joints_sync=None, ready_sync=None, done_sync=None, new_joints_sync=None):
@@ -39,6 +40,7 @@ class Simulator:
                               1: Real-Time, simulate each frame at time defined in the saved timesteps. Might skip frames.
                               2: Step-by-step, press any key to simulate next frame, "q" to quit.
         :param frame_duration: Duration for each frame. Applies only for normal playback mode.
+        :param save_performance_file: If different time stamps for each frame should be saved to show performance of different methods.
         :param simulate_limbs: If limbs should be simulated.
         :param simulate_joints: If joints should be simulated.
         :param simulate_joint_connections: If connections between joint should be simulated.
@@ -66,6 +68,12 @@ class Simulator:
         self.playback_file = playback_file
         self.playback_mode = playback_mode
         self.frame_duration = frame_duration
+        if save_performance_file is not None and save_performance_file != "" and not save_performance_file.endswith(".csv"):
+            self.save_performance = True
+            save_performance_file += ".csv"
+        else:
+            self.save_performance = False
+        self.save_performance_file = save_performance_file
         self.simulate_limbs = simulate_limbs
         self.simulate_joints = simulate_joints
         self.simulate_joint_connections = simulate_joint_connections
@@ -156,6 +164,8 @@ class Simulator:
             except FileNotFoundError:
                 raise FileNotFoundError("Provide playback file")
 
+        self.times_waiting, self.times_simulation_step = ([], []) if self.save_performance else (helper.NoList(), helper.NoList())
+
         if not as_subprocess and not playback:
             # Wait for Perceptor to be ready
             self.ready_sync.wait()
@@ -182,12 +192,22 @@ class Simulator:
 
         try:
             while not self.done_sync.value:
+                t0 = time.time()
                 self.new_joints_sync.wait()
+                self.times_waiting.append(time.time()-t0)
+
+                t1 = time.time()
                 self.new_joints_sync.clear()
                 self.process_frame_sync()
+                self.times_simulation_step.append(time.time()-t1)
             p.disconnect()
         finally:
             self.done_sync.value = True
+
+            if self.save_performance:
+                df = pd.DataFrame({'Waiting for Frame Time in s': self.times_waiting, 'Simulation Step Time in s': self.times_simulation_step})
+                df["Total Frame Time in s"] = df["Waiting for Frame Time in s"] + df["Simulation Step Time in s"]
+                df.to_csv(self.save_performance_file)
 
     def process_frame_sync(self):
         """

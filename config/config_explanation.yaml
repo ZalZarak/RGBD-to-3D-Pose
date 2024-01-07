@@ -16,6 +16,10 @@ Perceptor:
   save_joints: false
   # If a bag of the color and depth stream should be saved under savefile_prefix + ".bag". Attention: No compression -> big files.
   save_bag: false
+  # If the performance should be saved.
+  # For each frame, it will save the time waiting for a frame from the camera, the time for OpenPose, the time for validation
+  # the time for the entire processing without waiting and the accumulated time of waiting and processing.
+  save_performance: false
   # show
   # Show RGB-Stream.
   show_rgb: true
@@ -237,6 +241,10 @@ Simulator:
   playback_mode: 1
   # Duration for each frame. Applies only for normal playback mode 1.
   frame_duration: 0.05
+  # File to save performance to. Not saved if empty.
+  # For each frame, it saves the time for waiting on data from perceptor, the time for performing one simulation step
+  # and the accumulated time
+  save_performance_file: False
   # If limbs should be simulated.
   simulate_limbs: True
   # If joints should be simulated.

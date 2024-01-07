@@ -1,4 +1,4 @@
-run: 0   # Perceptor: 0, Simulator: 1, Debug: 2
+run: 0  # Perceptor: 0, Simulator: 1, Debug: 2
 Perceptor:
   playback: true
   playback_file: res/test.bag
@@ -8,6 +8,7 @@ Perceptor:
   savefile_prefix: "training_2"
   save_joints: false
   save_bag: false
+  save_performance: false
   # show
   show_rgb: true
   show_depth: true
@@ -183,6 +184,7 @@ Simulator:
   playback_file: "res/training_2_joints.pkl"
   playback_mode: 0    # 0: normal, 1: real-time, 2: step-by-step
   frame_duration: 0.001
+  save_performance_file: False
   simulate_limbs: True
   simulate_joints: False
   simulate_joint_connections: False

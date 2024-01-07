@@ -4,6 +4,7 @@ import time
 
 import cv2
 import numpy as np
+import pandas as pd
 import pyrealsense2 as rs
 from math import sin, cos
 
@@ -18,7 +19,7 @@ class Perceptor:
     def __init__(self, playback: bool, duration: float, playback_file: str | None,
                  resolution: tuple[int, int], fps: int, flip: int, countdown: int,
                  translation: (float, float, float), rotation: (float, float, float),
-                 savefile_prefix: str | None, save_joints: bool, save_bag: bool,
+                 savefile_prefix: str | None, save_joints: bool, save_bag: bool, save_performance: bool,
                  show_rgb: bool, show_depth: bool, show_joints: bool, show_color_mask: bool,
                  simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool,
                  visual_preset: str, exposure: int, gain: int, laser_power: int, depth_units: float,
@@ -48,6 +49,7 @@ class Perceptor:
         :param savefile_prefix: Prefix for saved files.
         :param save_joints: If 3D joints and the time they were received should be saved under savefile_prefix + "_joints.pkl".
         :param save_bag: If a bag of the color and depth stream should be saved under savefile_prefix + ".bag". Attention: No compression -> big files.
+        :param save_performance: If different time stamps for each frame should be saved to show performance of different methods.
         :param show_rgb: Show RGB-Stream.
         :param show_depth: Show Depth-Stream.
         :param show_joints: Show joints and connections in both the RGB-Stream and the Depth-Stream.
@@ -125,6 +127,7 @@ class Perceptor:
         self.countdown = countdown
         self.save_joints = save_joints
         self.save_bag = save_bag
+        self.save_performance = save_performance
         self.show_rgb = show_rgb
         self.show_depth = show_depth
         self.show_joints = show_joints
@@ -155,13 +158,18 @@ class Perceptor:
         else:
             raise ValueError("Rotation should be in range [-4, 4]")
 
-        if (save_bag or save_joints) and (savefile_prefix is None or savefile_prefix == ""):
+        if (save_bag or save_joints or save_performance) and (savefile_prefix is None or savefile_prefix == ""):
             raise ValueError("Provide prefix for saving files")
         if playback and (playback_file is None or playback_file == ""):
             raise ValueError("Provide playback file")
 
         self.filename_bag = savefile_prefix + ".bag" if save_bag else ""
         self.filename_joints = savefile_prefix + "_joints.pkl" if save_joints else ""
+        self.filename_performance = savefile_prefix + "_performance_perceptor.csv" if save_performance else ""
+
+        # fps
+        self.times_total_start = 0
+        self.times_processing_total, self.times_waiting, self.times_validation, self.times_openPose = ([], [], [], []) if save_performance else (helper.NoList(), helper.NoList(), helper.NoList(), helper.NoList())
 
         if save_bag and os.path.exists(self.filename_bag):
             print(f"File {self.filename_bag} already exists. Proceeding will overwrite this file.")
@@ -305,6 +313,11 @@ class Perceptor:
                 with open(self.filename_joints, 'wb') as file:
                     pickle.dump(self.joints_save, file)
                 print("Joints saved to:", self.filename_joints)
+            if self.save_performance:
+                df = pd.DataFrame({'Total Processing Times except waiting in s': self.times_processing_total, 'Waiting Times': self.times_waiting, 'OpenPose Times in s': self.times_openPose, 'Validation Times in s': self.times_validation})
+                df["Total Times"] = df['Total Processing Times except waiting in s'] + df['Waiting Times']
+                df.to_csv(self.filename_performance, index=False)
+                print("Performance saved to:", self.filename_performance)
 
     def prepare(self):
         """
@@ -396,7 +409,9 @@ class Perceptor:
 
         if self.use_openpose:
             # get joints from OpenPose assuming there is only one person
+            t0 = time.time()    # fps
             joints_2d, confidences, joint_image = self.openpose_handler.push_frame(color_image)
+            self.times_openPose.append(time.time() - t0)    # fps
 
             if self.show_rgb:
                 helper.show("RGB-Stream", joint_image if self.show_joints else color_image)
@@ -406,7 +421,9 @@ class Perceptor:
             joints_2d_camera_space = np.apply_along_axis(self.real_to_camera_space_2d, 1, joints_2d)    # translate from image space to camera space
             color_image_camera_space = np.rot90(color_image, k=self.flip_rev)  # rotate color_image back to camera space
 
+            t0 = time.time()
             joints_3d = self.get_3d_joints(joints_2d_camera_space, confidences, depth_frame, color_image_camera_space)  # retrieve 3d coordinates for joints
+            self.times_validation.append(time.time() - t0)
 
             for f in self.joint_3d_transforms:
                 # apply custom transforms
@@ -424,6 +441,7 @@ class Perceptor:
                 # set sync joints and new joints flag for Simulator
                 self.joints_sync[:] = joints_3d.flatten()
                 self.new_joints_sync.set()
+            self.times_processing_total.append(time.time() - self.times_total_start)   # fps
             if self.save_joints:
                 self.joints_save.append((t - self.start_time, joints_3d))
         else:
@@ -442,8 +460,12 @@ class Perceptor:
         """
 
         # Wait for the next set of frames from the camera
+        t0 = time.time()
         frames = self.rs_pipeline.wait_for_frames()
         t = time.time()     # save the time the frames were received at
+        self.time_total_start = t   # fps
+        self.times_waiting.append(time.time() - t0)
+
         frames = self.align.process(frames)
 
         # Get depth frame

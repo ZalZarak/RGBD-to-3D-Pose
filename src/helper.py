@@ -83,3 +83,8 @@ def generate_search_pixels(pixel: tuple[int, int], joint_id: int, base_search_ar
 class NoFilter:
     def process(self, a):
         return a
+
+
+class NoList:
+    def append(self, a):
+        return
