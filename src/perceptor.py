@@ -1,6 +1,7 @@
 import os
 import pickle
 import time
+from warnings import warn
 
 import cv2
 import numpy as np
@@ -171,17 +172,17 @@ class Perceptor:
         self.times_total_start = 0
         self.times_processing_total, self.times_waiting, self.times_validation, self.times_openPose = ([], [], [], []) if save_performance else (helper.NoList(), helper.NoList(), helper.NoList(), helper.NoList())
 
-        if save_bag and os.path.exists(self.filename_bag):
-            print(f"File {self.filename_bag} already exists. Proceeding will overwrite this file.")
-            print(f"Proceed? y/[n]")
-            if input().lower() != 'y':
-                exit()
-
-        if save_joints and os.path.exists(self.filename_joints):
-            print(f"File {self.filename_bag} already exists. Proceeding will overwrite this file.")
-            print(f"Proceed? y/[n]")
-            if input().lower() != 'y':
-                exit()
+        for s, f in [(save_bag, self.filename_bag), (save_joints, self.filename_joints), (save_performance, self.filename_performance)]:
+            try:
+                if s and os.path.exists(f):
+                    print(f"File {f} already exists. Proceeding will overwrite this file.")
+                    print(f"Proceed? y/[n]")
+                    if input().lower() != 'y':
+                        exit()
+            except EOFError as e:
+                warn("This error is likely happening, because the subprocess tries to access stdin.")
+                warn(f"Please remove/rename the file {f} or change the according parameter.")
+                raise e
 
         if show_rgb:
             cv2.namedWindow("RGB-Stream", cv2.WINDOW_AUTOSIZE)
@@ -314,8 +315,15 @@ class Perceptor:
                     pickle.dump(self.joints_save, file)
                 print("Joints saved to:", self.filename_joints)
             if self.save_performance:
-                df = pd.DataFrame({'Total Processing Times except waiting in s': self.times_processing_total, 'Waiting Times': self.times_waiting, 'OpenPose Times in s': self.times_openPose, 'Validation Times in s': self.times_validation})
-                df["Total Times"] = df['Total Processing Times except waiting in s'] + df['Waiting Times']
+                max_len = max(len(self.times_processing_total), len(self.times_waiting), len(self.times_openPose), len(self.times_validation))
+                for l in [self.times_processing_total, self.times_waiting, self.times_openPose, self.times_validation]:
+                    l.extend([None] * (max_len - len(l)))
+
+                df = pd.DataFrame({'Perc: Total Processing Times except waiting': self.times_processing_total,
+                                   'Perc: Waiting Times': self.times_waiting,
+                                   'Perc: OpenPose Times': self.times_openPose,
+                                   'Perc: Validation Times': self.times_validation})
+                df["Perc: Total Times"] = df['Perc: Total Processing Times except waiting'] + df['Perc: Waiting Times']
                 df.to_csv(self.filename_performance, index=False)
                 print("Performance saved to:", self.filename_performance)
 
@@ -441,7 +449,6 @@ class Perceptor:
                 # set sync joints and new joints flag for Simulator
                 self.joints_sync[:] = joints_3d.flatten()
                 self.new_joints_sync.set()
-            self.times_processing_total.append(time.time() - self.times_total_start)   # fps
             if self.save_joints:
                 self.joints_save.append((t - self.start_time, joints_3d))
         else:
@@ -451,6 +458,8 @@ class Perceptor:
                 helper.show("Depth-Stream", depth_image)
         if self.show_color_mask:
             helper.show_mask("Color-Mask-Stream", color_image, self.color_range)
+
+        self.times_processing_total.append(time.time() - self.times_total_start)  # fps
 
     def get_frames(self) -> tuple[any, np.ndarray, any, np.ndarray, float]:
         """
@@ -463,7 +472,7 @@ class Perceptor:
         t0 = time.time()
         frames = self.rs_pipeline.wait_for_frames()
         t = time.time()     # save the time the frames were received at
-        self.time_total_start = t   # fps
+        self.times_total_start = t   # fps
         self.times_waiting.append(time.time() - t0)
 
         frames = self.align.process(frames)

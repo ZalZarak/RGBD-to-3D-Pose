@@ -26,7 +26,7 @@ Perceptor:
   rotation: [0, 0, 0]
   # depth_settings
   visual_preset: "High Density"
-  exposure: 4000
+  exposure: 2000
   gain: 16
   laser_power: 360
   depth_units: 0.0005
@@ -176,7 +176,7 @@ OpenPoseHandler:
     process_real_time: True
     number_people_max: 1
     render_pose: 1
-    # "net_resolution": "-1x736"    # Multiples of 16. If it is increased, the accuracy potentially increases. If it is decreased, the speed increases. For maximum speed-accuracy balance, it should keep the closest aspect ratio possible to the images or videos to be processed. Using -1 in any of the dimensions, OP will choose the optimal aspect ratio depending on the user's input value.
+    # "net_resolution": "-1x384"    # Multiples of 16. If it is increased, the accuracy potentially increases. If it is decreased, the speed increases. For maximum speed-accuracy balance, it should keep the closest aspect ratio possible to the images or videos to be processed. Using -1 in any of the dimensions, OP will choose the optimal aspect ratio depending on the user's input value.
 Simulator:
   start_pybullet: true
   build_geometry: true
@@ -184,7 +184,7 @@ Simulator:
   playback_file: "res/training_2_joints.pkl"
   playback_mode: 0    # 0: normal, 1: real-time, 2: step-by-step
   frame_duration: 0.001
-  save_performance_file: False
+  save_performance_file: None   # none to deactivate performance test
   simulate_limbs: True
   simulate_joints: False
   simulate_joint_connections: False
@@ -264,7 +264,7 @@ Simulator:
     RAnkle-RBigToe: 0.15
     LAnkle-LBigToe: 0.15
 Debug:
-  mode: 2   # 0: color mask, 1: search area, 2: length, 3: view coordinates
+  mode: 0   # 0: color mask, 1: search area, 2: length, 3: view coordinates
   length_args:
     mode: 0   # 0: length, 1: depth
     output_filename: null

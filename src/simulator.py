@@ -1,6 +1,8 @@
+import os
 from bisect import bisect_left
 import pickle
 import time
+from warnings import warn
 
 import numpy as np
 import pandas as pd
@@ -68,11 +70,26 @@ class Simulator:
         self.playback_file = playback_file
         self.playback_mode = playback_mode
         self.frame_duration = frame_duration
-        if save_performance_file is not None and save_performance_file != "" and not save_performance_file.endswith(".csv"):
+
+        if (save_performance_file is not None and save_performance_file != "" and save_performance_file.lower() != "none"
+                and not save_performance_file.lower() != "false"):
             self.save_performance = True
-            save_performance_file += ".csv"
+            if not save_performance_file.endswith(".csv"):
+                save_performance_file += ".csv"
         else:
             self.save_performance = False
+
+        try:
+            if self.save_performance and os.path.exists(save_performance_file):
+                print(f"File {save_performance_file} already exists. Proceeding will overwrite this file.")
+                print(f"Proceed? y/[n]")
+                if input().lower() != 'y':
+                    exit()
+        except EOFError as e:
+            warn("This error is likely happening, because the subprocess tries to access stdin.")
+            warn(f"Please remove/rename the file {save_performance_file} or change the according parameter.")
+            raise e
+
         self.save_performance_file = save_performance_file
         self.simulate_limbs = simulate_limbs
         self.simulate_joints = simulate_joints
@@ -205,9 +222,14 @@ class Simulator:
             self.done_sync.value = True
 
             if self.save_performance:
-                df = pd.DataFrame({'Waiting for Frame Time in s': self.times_waiting, 'Simulation Step Time in s': self.times_simulation_step})
-                df["Total Frame Time in s"] = df["Waiting for Frame Time in s"] + df["Simulation Step Time in s"]
-                df.to_csv(self.save_performance_file)
+                max_len = max(len(self.times_waiting), len(self.times_simulation_step))
+                for l in [self.times_waiting, self.times_simulation_step]:
+                    l.extend([None] * (max_len - len(l)))
+
+                df = pd.DataFrame({'Sim: Waiting for Frame Time': self.times_waiting, 'Sim: Simulation Step Time': self.times_simulation_step})
+                df["Sim: Total Frame Time"] = df["Sim: Waiting for Frame Time"] + df["Sim: Simulation Step Time"]
+                df.to_csv(self.save_performance_file, index=False)
+                print(f"Performance saved to {self.save_performance_file}")
 
     def process_frame_sync(self):
         """
