@@ -20,22 +20,34 @@ conf["save_joints"] = conf["save_bag"] = conf["save_performance"] = conf["show_r
 
 cl = Perceptor(**conf)
 
-joint_file = "res/training_2_joints.pkl"
-with open(joint_file, "rb") as f:
-    obj = list(pickle.load(f))  # [0:3]
-times = np.array(list(map(lambda f: f[0], obj)))
-frames = np.array(list(map(lambda f: f[1], obj)))
-l = len(obj)
-
 is_valid = lambda j: np.all(j != (0, 0, 0))
 
 
-def proportion_valid_joints():
+def read_joint_file(file_path):
+    """
+    Read joint file and return frames (joint positions), according times and number of frames
+    """
+
+    with open(file_path, "rb") as f:
+        obj = list(pickle.load(f))
+
+    frames = np.array(list(map(lambda f: f[1], obj)))
+    times = np.array(list(map(lambda f: f[0], obj)))
+    l = len(obj)
+
+    return frames, times, l
+
+
+def proportion_valid_joints(file_path):
+    frames, times, l = read_joint_file(file_path)
+
     r = np.sum(np.all(frames != [0, 0, 0], axis=-1), axis=0).astype(int)
     return [[i / l] for i in r], [[i] for i in r]
 
 
-def count_streak_times():
+def count_streak_times(file_path):
+    frames, times, l = read_joint_file(file_path)
+
     res = [[] for _ in range(25)]
     on_streak = np.ones([25], dtype=float) * -1  # strike start time
 
@@ -57,7 +69,9 @@ def count_streak_times():
     return res
 
 
-def get_joint_speeds():
+def get_joint_speeds(file_path):
+    frames, times, l = read_joint_file(file_path)
+
     res = [[] for _ in range(25)]
 
     for t, frame in enumerate(frames[1:]):
@@ -70,7 +84,9 @@ def get_joint_speeds():
     return res
 
 
-def get_invalid_connections():
+def get_invalid_connections(file_path):
+    frames, times, l = read_joint_file(file_path)
+
     res_too_long = [[] for _ in range(len(cl.connections))]
     res_too_short = [[] for _ in range(len(cl.connections))]
     res_too_long_depth = [[] for _ in range(len(cl.connections))]
@@ -102,24 +118,6 @@ def get_invalid_connections():
                     res_count_invalid[c] += 1
 
     res_invalid_share = res_count_invalid / res_count_total
-
-    """def p(data):
-        for i, d in enumerate(data):
-            print(f"{cl.connections_hr[i]}: {d}")
-
-    print("TEST:")
-    p(res_test)
-    print("COUNT: ")
-    p(res_count)
-    input()
-    print("\nTOO LONG:")
-    p(map(lambda i: len(i), res_too_long))
-    input()
-    print("\nTOO SHORT:")
-    p(map(lambda i: len(i), res_too_short))
-    input()
-    print("\nDEPTH TO LONG:")
-    p(map(lambda i: len(i), res_too_long_depth))"""
 
     return res_too_long, res_too_short, res_too_long_depth, [[i] for i in res_invalid_share], [[i] for i in res_count_invalid]
 
