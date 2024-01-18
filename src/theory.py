@@ -1,15 +1,26 @@
 import copy
+import os
 import time
 import warnings
 
-try:
-    import cupy as np
-    import numpy
-    use_numpy = False
-except ImportError:
+import pandas as pd
+
+from src.analyzer import cl
+
+use_numpy = True
+
+if use_numpy:
     warnings.warn("Install cupy for parallelized calculation")
     import numpy as np
-    use_numpy = True
+else:
+    try:
+        import cupy as np
+        import numpy
+        use_numpy = False
+    except ImportError:
+        warnings.warn("Install cupy for parallelized calculation")
+        import numpy as np
+        use_numpy = True
 
 import matplotlib
 matplotlib.use('TkAgg')  # oder ein anderes fensterbasiertes Backend wie 'Qt5Agg'
@@ -50,42 +61,62 @@ def minn(a,b):
 def max0(a):
     return np.max(np.array([np.zeros_like(a), a]), axis=0)
 
+def betw0(a,d):
+    return np.min([max0(a), np.ones_like(a)*d], axis=0)
+
 
 def sqrt0(x):
     return np.sqrt(x * (x > 0))
 
 
-def g1(m, l, s, d, h, gamma, t):
-    return max0((m * np.sin(gamma + np.arctan(h/d)) - sqrt0(m**2 * np.sin(gamma + np.arctan(h/d))**2 + s**2 - m**2)) / np.sqrt(1 + h**2/d**2))
+def g0(m, l, s, d, h, gamma, t, k):
+    return betw0((m * np.sin(gamma + np.arctan(h / d)) - sqrt0(m ** 2 * np.sin(gamma + np.arctan(h / d)) ** 2 + l ** 2 - m ** 2)) / np.sqrt(1 + h ** 2 / d ** 2), d)
 
 
-def g2(m, l, s, d, h, gamma, t):
-    return max0((m * np.sin(gamma + np.arctan(h/d)) + sqrt0(m**2 * np.sin(gamma + np.arctan(h/d))**2 + s**2 - m**2)) / np.sqrt(1 + h**2/d**2))
+def g1(m, l, s, d, h, gamma, t, k):
+    return betw0((m * np.sin(gamma + np.arctan(h / d)) - sqrt0(m ** 2 * np.sin(gamma + np.arctan(h / d)) ** 2 + s ** 2 - m ** 2)) / np.sqrt(1 + h ** 2 / d ** 2), d)
 
 
-def g3(m, l, s, d, h, gamma, t):
-    return max0((m * np.sin(gamma + np.arctan(h/d)) + sqrt0(m**2 * np.sin(gamma + np.arctan(h/d))**2 + l**2 - m**2)) / np.sqrt(1 + h**2/d**2))
+def g2(m, l, s, d, h, gamma, t, k):
+    return betw0((m * np.sin(gamma + np.arctan(h / d)) + sqrt0(m ** 2 * np.sin(gamma + np.arctan(h / d)) ** 2 + s ** 2 - m ** 2)) / np.sqrt(1 + h ** 2 / d ** 2), d)
 
 
-def f_tilde(m, l, s, d, h, gamma, t):
-    return g3(m, l, s, d, h, gamma, t) - g2(m, l, s, d, h, gamma, t) + g1(m, l, s, d, h, gamma, t)
+def g3(m, l, s, d, h, gamma, t, k):
+    return betw0((m * np.sin(gamma + np.arctan(h / d)) + sqrt0(m ** 2 * np.sin(gamma + np.arctan(h / d)) ** 2 + l ** 2 - m ** 2)) / np.sqrt(1 + h ** 2 / d ** 2), d)
 
 
-def t_minus(m, l, s, d, h, gamma, t):
-    return max0(minn(g3(m, l, s, d, h, gamma, t), m * np.sin(gamma) - t))
+def f_tilde(m, l, s, d, h, gamma, t, k):
+    return g3(m, l, s, d, h, gamma, t, k) - g2(m, l, s, d, h, gamma, t, k) + g1(m, l, s, d, h, gamma, t, k) - g0(m, l, s, d, h, gamma, t, k)
 
 
-def t_plus(m, l, s, d, h, gamma, t):
-    return max0(minn(g3(m, l, s, d, h, gamma, t), m * np.sin(gamma) + t))
+def t_minus(m, l, s, d, h, gamma, t, k):
+    return max0(minn(g3(m, l, s, d, h, gamma, t, k), m * np.sin(gamma) - t))
 
 
-def f(m, l, s, d, h, gamma, t):
-    t_minus_val = t_minus(m, l, s, d, h, gamma, t)
-    t_plus_val = t_plus(m, l, s, d, h, gamma, t)
-    return max0(minn(g1(m, l, s, d, h, gamma, t), t_plus_val) - t_minus_val) + max0(minn(t_plus_val, g3(m, l, s, d, h, gamma, t)) - maxx(g2(m, l, s, d, h, gamma, t), t_minus_val))
+def t_plus(m, l, s, d, h, gamma, t, k):
+    return max0(minn(g3(m, l, s, d, h, gamma, t, k), m * np.sin(gamma) + t))
 
 
-def find_max(func, params: dict):
+def f(m, l, s, d, h, gamma, t, k):
+    t_minus_val = t_minus(m, l, s, d, h, gamma, t, k)
+    t_plus_val = t_plus(m, l, s, d, h, gamma, t, k)
+    return max0(minn(g1(m, l, s, d, h, gamma, t, k), t_plus_val) - max(g0(m, l, s, d, h, gamma, t, k), t_minus_val)) + max0(minn(t_plus_val, g3(m, l, s, d, h, gamma, t, k)) - maxx(g2(m, l, s, d, h, gamma, t, k), t_minus_val))
+
+
+def f_2(m, l, s, d, h, gamma, t, k):
+    k = np.where(0 <= k <= d - m*np.sin(gamma), k, np.nan)
+
+    m_prime = np.sqrt((k + m * np.sin(gamma))**2 + (m * np.cos(gamma) + k * (h - m * np.cos(gamma)) / (d - m * np.sin(gamma)))**2)
+
+    sin_part = (m * np.sin(gamma) + k) / m_prime
+    gamma_prime = np.where(m * np.cos(gamma) + k * (h - m * np.cos(gamma)) / (d - m * np.sin(gamma)) >= 0,
+                           np.arcsin(sin_part),
+                           np.pi - np.arcsin(sin_part))
+
+    return f(m_prime, l, s, d, h, gamma_prime, t, k)
+
+
+def calc_stats_numerically(func, params: dict, use_nan=False):
     params = params.copy()
 
     ranges = []
@@ -110,7 +141,15 @@ def find_max(func, params: dict):
             params[k] = float(params[k][Xmax])
             s.append(f"{k}={params[k]}")
 
-    return maxi, params
+    mean, median, std = (np.nanmean, np.nanmedian, np.nanstd) if use_nan else (np.mean, np.median, np.std)
+
+    return {
+            "Max": maxi,
+            "Parameters for Max": params,
+            "Average": float(mean(Z)),
+            "Median": float(median(Z)),
+            "StdDev": float(std(Z))
+            }
 
 
 def plot(func, func_label: str, params: dict, range_x: tuple[float, float], range_y: tuple[float, float], points_per_axis: int = 1000):
@@ -181,62 +220,176 @@ def plot(func, func_label: str, params: dict, range_x: tuple[float, float], rang
     plt.show(block=True)
 
 
+def show_statistics_for_multiple_connections(cons=("Nose-Neck", "Nose-LEye", "LEye-LEar", "Neck-LShoulder", "LShoulder-LElbow", "LElbow-LWrist", "Neck-MidHip", "MidHip-LHip", "LHip-LKnee"),
+                                             print_console=True, save_path:str =None, load_path=None, func=f_2, params=None, m_points=50, gamma=(-np.pi/2, np.pi/2, 40), d=(1., 5., 40), h=(-1.5, 1.5, 40), k_points=40):
+
+    assert all([con in cl.lengths_hr.keys() and con in cl.depth_deviations_hr.keys() for con in cons]), "Check your specified connections. Some are not in lengths_hr or depth_deviations_hr"
+
+    if save_path is not None:
+        if not (save_path.endswith(".csv") or save_path.endswith(".xlsx")):
+            save_path += ".csv"
+        if os.path.exists(save_path):
+            print(f"File {save_path} already exists. Proceeding will overwrite this file.")
+            print(f"Proceed? y/[n]")
+            if input().lower() != 'y':
+                return
+
+    print("Starting...")
+
+    if load_path is None:
+        df = pd.DataFrame()
+        dict_max_parameter = {}
+        for con in cons:
+            s, l = cl.lengths_hr[con]
+            t = cl.depth_deviations_hr[con]
+            t = t if t >= 0 else np.inf
+
+            params["l"] = l
+            params = {
+                "l": l,
+                "s": s,
+                "m": (s, l, m_points),
+                "gamma": gamma,
+                "d": d,
+                "h": h,
+                "t": t,
+                "k": (0, d-m*np.sin(gamma))
+            }
+
+            v = calc_stats_numerically(func=func, params=params)
+            dict_max_parameter[con] = v.pop("Parameters for Max")
+            df[con] = pd.Series(v)
+
+            print(f"Connection {con} completed...")
+
+        if print_console:
+            print(df)
+            print()
+            print('\n'.join([f'{key}: {value}' for key, value in dict_max_parameter.items()]))
+
+        if save_path is not None:
+            if save_path.endswith(".csv"):
+                df.to_csv(save_path)
+            elif save_path.endswith(".xlsx"):
+                df.to_excel(save_path)
+            print(f"Saved to {save_path}")
+    else:
+        if load_path.endswith(".csv"):
+            df = pd.read_csv(load_path, index_col=0)
+        elif load_path.endswith(".xlsx"):
+            df = pd.read_excel(load_path, index_col=0)
+        else:
+            raise ValueError("Load path is neither csv nor xlsx")
+
+
+    # Set up the figure
+    plt.figure(figsize=(12, 6))  # Adjusting size to accommodate around 10 connections
+
+    # X-axis labels (Connections)
+    x_labels = df.keys()
+    x = range(len(x_labels))  # Numeric x-axis to position the dots
+
+    # Plotting each metric
+    plt.scatter(x, df.loc['Max'], color='red', label='Max')  # Max in red
+    plt.scatter(x, df.loc['Average'], color='#00ff00', label='Average', alpha=1)  # Average in green
+    plt.scatter(x, df.loc['Median'], color='blue', label='Median')  # Median in blue
+
+    # Adding error bars for StdDev
+    # The error bar is capped at 0 by calculating the lower limit: max(average - stddev, 0)
+    stddev_values = df.loc['StdDev']
+    average_values = df.loc['Average']
+    lower_limits = [max(avg - std, 0) for avg, std in zip(average_values, stddev_values)]
+    upper_limits = [avg + std for avg, std in zip(average_values, stddev_values)]
+    lower_errors = average_values - lower_limits
+    upper_errors = upper_limits - average_values
+    errors = [lower_errors, upper_errors]
+    plt.errorbar(x, average_values, yerr=errors, fmt='o', color='black', capsize=5, alpha=.7)
+
+    # Labels and Title
+    plt.xticks(x, x_labels, rotation=15)
+    plt.ylabel('f in m')
+    plt.title('Metrics for the theoretical total distance where validation fails')
+    plt.legend()
+
+    plt.grid(which='both', axis='y', linestyle='dotted', color='gray')
+    plt.minorticks_on()  # Enable minor ticks for finer grid
+    plt.grid(which='major', axis='y', linestyle='-', linewidth=0.5)
+
+    # Ensuring the y-axis starts at 0
+    plt.ylim(bottom=0)
+
+    # Show the plot
+    plt.show(block=True)
+
+
+# Beispielwerte für die Variablen
+l = .63  # maximale Akzeptanzlänge
+s = .5   # kürzeste Akzeptanzlänge
+m = .58   # tatsächliche Länge der Verbindung
+gamma = np.pi / 20  # Neigungswinkel
+d = 3.   # waagerechter Kameraabstand
+h = .5   # vertikaler Kameraabstand
+t = 0.2  # maximale Tiefendifferenz
+k = 0.
+
+params_for_f = {
+    "l": l,
+    "s": s,
+    "m": (s, l, 100),
+    "gamma": (-np.pi/2, np.pi/2, 100),
+    "d": (1., 5., 100),
+    "h": (-1.5, 1.5, 100),
+    "t": t,
+    "k": k
+}
+
+params_for_f2 = {
+    "l": l,
+    "s": s,
+    "m": (s, l, 10),
+    "gamma": (-np.pi/2, np.pi/2, 10),
+    "d": (1., 5., 10),
+    "h": (-1.5, 1.5, 10),
+    "t": t,
+    "k": (0, d+m, 10)
+}
+
+params_for_view = {
+    "m": m,
+    "l": l,
+    "s": s,
+    "d": d,
+    "h": "y",
+    "gamma": "x",
+    "t": t,
+    "k": k
+}
+
 if __name__ == '__main__':
 
-    # Beispielwerte für die Variablen
-    l = .63  # maximale Akzeptanzlänge
-    s = .5   # kürzeste Akzeptanzlänge
-    m = .5   # tatsächliche Länge der Verbindung
-    gamma = np.pi / 20  # Neigungswinkel
-    d = 3.   # waagerechter Kameraabstand
-    h = .5   # vertikaler Kameraabstand
-    t = np.inf  # maximale Tiefendifferenz
 
-    params = {
-        "l": l,
-        "s": s,
-        "m": [s, l, 100],
-        "gamma": (-np.pi/2, np.pi*3/2, 100),
-        "d": [1., 5., 100],
-        "h": (-1.5, 1.5, 100),
-        "t": t,
-    }
 
-    params2 = {
-        "l": l,
-        "s": s,
-        "m": m,
-        "gamma": "x",
-        "d": d,
-        "h": "y",
-        "t": t,
-    }
+    # plot(func=f, func_label="f", params=params2, range_x=(-np.pi/2, np.pi*3/2), range_y=(-1.5, 5), points_per_axis=100)
 
-    plot(func=f, func_label="f", params=params2, range_x=(-np.pi/2, np.pi*3/2), range_y=(-1.5, 3), points_per_axis=100)
+    # show_statistics_for_multiple_connections(load_path="res/theoretical_stats_2.xlsx")
 
-    """for m in np.arange(m,l,0.01):
-        params["m"] = float(m)
-        # maxi = find_max(func=f, params=params, range_x=(-np.pi/2, np.pi*3/2), range_y=(-1.5, 3), points_per_axis=10000)
-        maxi = find_max(func=f, params=params)
-        print(f"m = {m} => max = {maxi}")"""
-    # print(find_max(func=f, params=params))
-    #test, maxi = find_max(func=f, params=params)
-    # print(f_tilde(**{'l': 0.63, 's': 0.5, 'm': 0.63, 'gamma': 0.6505318121069774, 'd': 4.3939393939393945, 'h': 0.015151515151515194, 't': np.inf}))
-    #print(maxi)
-    """
-    m = 0.5 => max = 0.3832726126710673
-    m = 0.51 => max = 0.48376557584662094
-    m = 0.52 => max = 0.5260960171238898
-    m = 0.53 => max = 0.5590540230803155
-    m = 0.54 => max = 0.5872261859649304
-    m = 0.55 => max = 0.6124027578348695
-    m = 0.56 => max = 0.6354583130171356
-    m = 0.57 => max = 0.6569455525679014
-    m = 0.58 => max = 0.6772008538645009
-    m = 0.59 => max = 0.6964749168486538
-    m = 0.6 => max = 0.7149257821666968
-    m = 0.61 => max = 0.7326943627039589
-    m = 0.62 => max = 0.7498766336281268
-    
-    (0.76502622, {'l': 0.63, 's': 0.5, 'm': 0.63, 'gamma': 0.7139983303613167, 'd': 3.0202020202020203, 'h': -0.18181818181818177, 't': inf})
-    """
+    """ti = time.time()
+    print('\n'.join([f'{key}: {value}' for key, value in calc_stats_numerically(func=f_2, params=params_for_f, use_nan=True).items()]))
+    print(time.time()-ti)"""
+
+    print(f_2(l=0.63, s=0.5, m=0.6, gamma=-0.079, d=1.6, h=0.1, t=0.82, k=0.68))
+
+    """p = {'l': 0.63, 's': 0.5, 'm': 0.6011111111111112, 'gamma': 0.5235987755982989, 'd': 1.0, 'h': -0.10606060606060602, 't': 0.2, 'k': 0.0}
+
+    print(f"g_1: {g1(**p)}")
+    print(f"g_2: {g2(**p)}")
+    print(f"g_3: {g3(**p)}")
+    print(f"t_plus: {t_plus(**p)}")
+    print(f"t_min: {t_minus(**p)}")
+    print(f"f: {f(**p)}")
+    for k in range(10):
+        k = k/10
+        p["k"] =float(k)
+        print()
+        print(f"k: {k}")
+        print(f"f_2 {f_2(**p)}")"""
