@@ -7,7 +7,7 @@ import pandas as pd
 
 from src.analyzer import cl
 
-use_numpy = True
+use_numpy = False
 
 if use_numpy:
     warnings.warn("Install cupy for parallelized calculation")
@@ -16,15 +16,19 @@ else:
     try:
         import cupy as np
         import numpy
+
         use_numpy = False
     except ImportError:
         warnings.warn("Install cupy for parallelized calculation")
         import numpy as np
+
         use_numpy = True
 
 import matplotlib
+
 matplotlib.use('TkAgg')  # oder ein anderes fensterbasiertes Backend wie 'Qt5Agg'
 import matplotlib.pyplot as plt
+
 plt.ion()  # Schaltet den interaktiven Modus ein
 from matplotlib.ticker import MultipleLocator, FuncFormatter
 from mpl_toolkits.mplot3d import Axes3D
@@ -34,7 +38,7 @@ from IPython.display import display
 
 # Function to format the ticks as multiples of pi
 def format_func_rad(value, tick_number):
-    N = int(np.round(2*value / np.pi))
+    N = int(np.round(2 * value / np.pi))
     if N == 0:
         return "0"
     elif N == 2:
@@ -48,65 +52,72 @@ def format_func_rad(value, tick_number):
     else:
         return r"${0}\pi$".format(N)
 
+
 # Definition der Formeln
 
-def maxx(a,b):
+def maxx(a, b):
     return np.max(np.array([a, b]), axis=0)
 
 
-def minn(a,b):
+def minn(a, b):
     return np.min(np.array([a, b]), axis=0)
 
 
 def max0(a):
     return np.max(np.array([np.zeros_like(a), a]), axis=0)
 
-def betw0(a,d):
-    return np.min([max0(a), np.ones_like(a)*d], axis=0)
+
+def betw0(a, d):
+    return np.min(np.array([max0(a), np.ones_like(a) * d]), axis=0)
 
 
 def sqrt0(x):
     return np.sqrt(x * (x > 0))
 
 
-def g0(m, l, s, d, h, gamma, t, k):
-    return betw0((m * np.sin(gamma + np.arctan(h / d)) - sqrt0(m ** 2 * np.sin(gamma + np.arctan(h / d)) ** 2 + l ** 2 - m ** 2)) / np.sqrt(1 + h ** 2 / d ** 2), d)
+def g0(m, l, s, d, h, gamma, t=np.inf, k=0):
+    return betw0((m * np.sin(gamma + np.arctan(h / d)) - sqrt0(m ** 2 * np.sin(gamma + np.arctan(h / d)) ** 2 + l ** 2 - m ** 2)) / np.sqrt(
+        1 + h ** 2 / d ** 2), d)
 
 
-def g1(m, l, s, d, h, gamma, t, k):
-    return betw0((m * np.sin(gamma + np.arctan(h / d)) - sqrt0(m ** 2 * np.sin(gamma + np.arctan(h / d)) ** 2 + s ** 2 - m ** 2)) / np.sqrt(1 + h ** 2 / d ** 2), d)
+def g1(m, l, s, d, h, gamma, t=np.inf, k=0):
+    return betw0((m * np.sin(gamma + np.arctan(h / d)) - sqrt0(m ** 2 * np.sin(gamma + np.arctan(h / d)) ** 2 + s ** 2 - m ** 2)) / np.sqrt(
+        1 + h ** 2 / d ** 2), d)
 
 
-def g2(m, l, s, d, h, gamma, t, k):
-    return betw0((m * np.sin(gamma + np.arctan(h / d)) + sqrt0(m ** 2 * np.sin(gamma + np.arctan(h / d)) ** 2 + s ** 2 - m ** 2)) / np.sqrt(1 + h ** 2 / d ** 2), d)
+def g2(m, l, s, d, h, gamma, t=np.inf, k=0):
+    return betw0((m * np.sin(gamma + np.arctan(h / d)) + sqrt0(m ** 2 * np.sin(gamma + np.arctan(h / d)) ** 2 + s ** 2 - m ** 2)) / np.sqrt(
+        1 + h ** 2 / d ** 2), d)
 
 
-def g3(m, l, s, d, h, gamma, t, k):
-    return betw0((m * np.sin(gamma + np.arctan(h / d)) + sqrt0(m ** 2 * np.sin(gamma + np.arctan(h / d)) ** 2 + l ** 2 - m ** 2)) / np.sqrt(1 + h ** 2 / d ** 2), d)
+def g3(m, l, s, d, h, gamma, t=np.inf, k=0):
+    return betw0((m * np.sin(gamma + np.arctan(h / d)) + sqrt0(m ** 2 * np.sin(gamma + np.arctan(h / d)) ** 2 + l ** 2 - m ** 2)) / np.sqrt(
+        1 + h ** 2 / d ** 2), d)
 
 
-def f_tilde(m, l, s, d, h, gamma, t, k):
+def f_tilde(m, l, s, d, h, gamma, t=np.inf, k=0):
     return g3(m, l, s, d, h, gamma, t, k) - g2(m, l, s, d, h, gamma, t, k) + g1(m, l, s, d, h, gamma, t, k) - g0(m, l, s, d, h, gamma, t, k)
 
 
-def t_minus(m, l, s, d, h, gamma, t, k):
+def t_minus(m, l, s, d, h, gamma, t, k=0):
     return max0(minn(g3(m, l, s, d, h, gamma, t, k), m * np.sin(gamma) - t))
 
 
-def t_plus(m, l, s, d, h, gamma, t, k):
+def t_plus(m, l, s, d, h, gamma, t, k=0):
     return max0(minn(g3(m, l, s, d, h, gamma, t, k), m * np.sin(gamma) + t))
 
 
-def f(m, l, s, d, h, gamma, t, k):
+def f(m, l, s, d, h, gamma, t, k=0):
     t_minus_val = t_minus(m, l, s, d, h, gamma, t, k)
     t_plus_val = t_plus(m, l, s, d, h, gamma, t, k)
-    return max0(minn(g1(m, l, s, d, h, gamma, t, k), t_plus_val) - max(g0(m, l, s, d, h, gamma, t, k), t_minus_val)) + max0(minn(t_plus_val, g3(m, l, s, d, h, gamma, t, k)) - maxx(g2(m, l, s, d, h, gamma, t, k), t_minus_val))
+    return (max0(minn(g1(m, l, s, d, h, gamma, t, k), t_plus_val) - maxx(g0(m, l, s, d, h, gamma, t, k), t_minus_val)) +
+            max0(minn(g3(m, l, s, d, h, gamma, t, k), t_plus_val) - maxx(g2(m, l, s, d, h, gamma, t, k), t_minus_val)))
 
 
 def f_2(m, l, s, d, h, gamma, t, k):
-    k = np.where(0 <= k <= d - m*np.sin(gamma), k, np.nan)
+    k = np.where(np.logical_and(0 <= k, k <= d - m * np.sin(gamma)), k, np.nan)
 
-    m_prime = np.sqrt((k + m * np.sin(gamma))**2 + (m * np.cos(gamma) + k * (h - m * np.cos(gamma)) / (d - m * np.sin(gamma)))**2)
+    m_prime = np.sqrt((k + m * np.sin(gamma)) ** 2 + (m * np.cos(gamma) + k * (h - m * np.cos(gamma)) / (d - m * np.sin(gamma))) ** 2)
 
     sin_part = (m * np.sin(gamma) + k) / m_prime
     gamma_prime = np.where(m * np.cos(gamma) + k * (h - m * np.cos(gamma)) / (d - m * np.sin(gamma)) >= 0,
@@ -117,6 +128,8 @@ def f_2(m, l, s, d, h, gamma, t, k):
 
 
 def calc_stats_numerically(func, params: dict, use_nan=False):
+    argmax, mean, median, std = (np.nanargmax, np.nanmean, np.nanmedian, np.nanstd) if use_nan else (np.argmax, np.mean, np.median, np.std)
+
     params = params.copy()
 
     ranges = []
@@ -132,7 +145,7 @@ def calc_stats_numerically(func, params: dict, use_nan=False):
             params[k] = Xs.pop(0)
 
     Z = func(**params)
-    Xmax = np.unravel_index(np.argmax(Z, axis=None), Z.shape)
+    Xmax = np.unravel_index(argmax(Z, axis=None), Z.shape)
     maxi = float(Z[Xmax])
 
     s = []
@@ -141,15 +154,13 @@ def calc_stats_numerically(func, params: dict, use_nan=False):
             params[k] = float(params[k][Xmax])
             s.append(f"{k}={params[k]}")
 
-    mean, median, std = (np.nanmean, np.nanmedian, np.nanstd) if use_nan else (np.mean, np.median, np.std)
-
     return {
-            "Max": maxi,
-            "Parameters for Max": params,
-            "Average": float(mean(Z)),
-            "Median": float(median(Z)),
-            "StdDev": float(std(Z))
-            }
+        "Max": maxi,
+        "Parameters for Max": params,
+        "Average": float(mean(Z)),
+        "Median": float(median(Z)),
+        "StdDev": float(std(Z))
+    }
 
 
 def plot(func, func_label: str, params: dict, range_x: tuple[float, float], range_y: tuple[float, float], points_per_axis: int = 1000):
@@ -202,10 +213,10 @@ def plot(func, func_label: str, params: dict, range_x: tuple[float, float], rang
     fig.colorbar(surf, ax=ax, shrink=0.5, aspect=5)
 
     if x_in_rad:
-        ax.xaxis.set_major_locator(MultipleLocator(base=np.pi/2))
+        ax.xaxis.set_major_locator(MultipleLocator(base=np.pi / 2))
         ax.xaxis.set_major_formatter(FuncFormatter(format_func_rad))
     if y_in_rad:
-        ax.xaxis.set_major_locator(MultipleLocator(base=np.pi/2))
+        ax.xaxis.set_major_locator(MultipleLocator(base=np.pi / 2))
         ax.xaxis.set_major_formatter(FuncFormatter(format_func_rad))
 
     # Beschriftung der Achsen
@@ -220,10 +231,13 @@ def plot(func, func_label: str, params: dict, range_x: tuple[float, float], rang
     plt.show(block=True)
 
 
-def show_statistics_for_multiple_connections(cons=("Nose-Neck", "Nose-LEye", "LEye-LEar", "Neck-LShoulder", "LShoulder-LElbow", "LElbow-LWrist", "Neck-MidHip", "MidHip-LHip", "LHip-LKnee"),
-                                             print_console=True, save_path:str =None, load_path=None, func=f_2, params=None, m_points=50, gamma=(-np.pi/2, np.pi/2, 40), d=(1., 5., 40), h=(-1.5, 1.5, 40), k_points=40):
-
-    assert all([con in cl.lengths_hr.keys() and con in cl.depth_deviations_hr.keys() for con in cons]), "Check your specified connections. Some are not in lengths_hr or depth_deviations_hr"
+def show_statistics_for_multiple_connections(cons=(
+"Nose-Neck", "Nose-LEye", "LEye-LEar", "Neck-LShoulder", "LShoulder-LElbow", "LElbow-LWrist", "Neck-MidHip", "MidHip-LHip", "LHip-LKnee"),
+                                             print_console=True, save_path: str = None, load_path=None, func=f_2, params=None, m_points=50,
+                                             gamma=(-np.pi / 2, np.pi / 2, 40), d=(1., 5., 40), h=(-1.5, 1.5, 40), k_points=40):
+    assert all([con in cl.lengths_hr.keys() and con in cl.depth_deviations_hr.keys() for con in
+                cons]), "Check your specified connections. Some are not in lengths_hr or depth_deviations_hr"
+    print(func == f_2)
 
     if save_path is not None:
         if not (save_path.endswith(".csv") or save_path.endswith(".xlsx")):
@@ -253,10 +267,10 @@ def show_statistics_for_multiple_connections(cons=("Nose-Neck", "Nose-LEye", "LE
                 "d": d,
                 "h": h,
                 "t": t,
-                "k": (0, d-m*np.sin(gamma))
+                "k": (0, d[2] + l, k_points) if func == f_2 else 0.
             }
 
-            v = calc_stats_numerically(func=func, params=params)
+            v = calc_stats_numerically(func=func, params=params, use_nan=func == f_2)
             dict_max_parameter[con] = v.pop("Parameters for Max")
             df[con] = pd.Series(v)
 
@@ -280,7 +294,6 @@ def show_statistics_for_multiple_connections(cons=("Nose-Neck", "Nose-LEye", "LE
             df = pd.read_excel(load_path, index_col=0)
         else:
             raise ValueError("Load path is neither csv nor xlsx")
-
 
     # Set up the figure
     plt.figure(figsize=(12, 6))  # Adjusting size to accommodate around 10 connections
@@ -324,21 +337,21 @@ def show_statistics_for_multiple_connections(cons=("Nose-Neck", "Nose-LEye", "LE
 
 # Beispielwerte für die Variablen
 l = .63  # maximale Akzeptanzlänge
-s = .5   # kürzeste Akzeptanzlänge
-m = .58   # tatsächliche Länge der Verbindung
+s = .5  # kürzeste Akzeptanzlänge
+m = .58  # tatsächliche Länge der Verbindung
 gamma = np.pi / 20  # Neigungswinkel
-d = 3.   # waagerechter Kameraabstand
-h = .5   # vertikaler Kameraabstand
+d = 3.  # waagerechter Kameraabstand
+h = .5  # vertikaler Kameraabstand
 t = 0.2  # maximale Tiefendifferenz
-k = 0.
+k = 0.5
 
 params_for_f = {
     "l": l,
     "s": s,
-    "m": (s, l, 100),
-    "gamma": (-np.pi/2, np.pi/2, 100),
-    "d": (1., 5., 100),
-    "h": (-1.5, 1.5, 100),
+    "m": (s, l, 10),
+    "gamma": (-np.pi / 2, np.pi / 2, 10),
+    "d": (1., 5., 10),
+    "h": (-1.5, 1.5, 10),
     "t": t,
     "k": k
 }
@@ -347,11 +360,11 @@ params_for_f2 = {
     "l": l,
     "s": s,
     "m": (s, l, 10),
-    "gamma": (-np.pi/2, np.pi/2, 10),
+    "gamma": (-np.pi / 2, np.pi / 2, 10),
     "d": (1., 5., 10),
     "h": (-1.5, 1.5, 10),
     "t": t,
-    "k": (0, d+m, 10)
+    "k": (0, d + m, 10)
 }
 
 params_for_view = {
@@ -362,22 +375,32 @@ params_for_view = {
     "h": "y",
     "gamma": "x",
     "t": t,
-    "k": k
+}
+
+params_for_view2 = {
+    "m": 0.31,
+    "l": 0.34,
+    "s": 0.27,
+    "d": 3.0,
+    "h": "y",
+    "gamma": "x",
+    "t": np.inf,
+    #"k": 0.5
 }
 
 if __name__ == '__main__':
+    plot(func=f, func_label="f", params=params_for_view2, range_x=(-np.pi/2, np.pi*3/2), range_y=(-1.5, 1.5), points_per_axis=5000)
 
-
-
-    # plot(func=f, func_label="f", params=params2, range_x=(-np.pi/2, np.pi*3/2), range_y=(-1.5, 5), points_per_axis=100)
-
-    # show_statistics_for_multiple_connections(load_path="res/theoretical_stats_2.xlsx")
+    # show_statistics_for_multiple_connections(save_path="res/theoretical_stats_3.xlsx", func=f, params=params_for_f, m_points=100,
+    #                                         gamma=(-np.pi / 2, np.pi / 2, 100), d=(1., 5., 100), h=(-1.5, 1.5, 100), k_points=0)
+    #show_statistics_for_multiple_connections(save_path="res/theoretical_stats_two_joints_occluded.xlsx", func=f_2, params=params_for_f2, m_points=40,
+    #                                         gamma=(-np.pi / 2, np.pi / 2, 40), d=(1., 5., 40), h=(-1.5, 1.5, 40), k_points=40)
 
     """ti = time.time()
-    print('\n'.join([f'{key}: {value}' for key, value in calc_stats_numerically(func=f_2, params=params_for_f, use_nan=True).items()]))
+    print('\n'.join([f'{key}: {value}' for key, value in calc_stats_numerically(func=f, params=params_for_f, use_nan=False).items()]))
     print(time.time()-ti)"""
 
-    print(f_2(l=0.63, s=0.5, m=0.6, gamma=-0.079, d=1.6, h=0.1, t=0.82, k=0.68))
+    # print(f(**{'l': 0.63, 's': 0.5, 'm': 0.616, 'gamma': 0.785, 'd': 1., 'h': .3, 't': .54, 'k': 0}))
 
     """p = {'l': 0.63, 's': 0.5, 'm': 0.6011111111111112, 'gamma': 0.5235987755982989, 'd': 1.0, 'h': -0.10606060606060602, 't': 0.2, 'k': 0.0}
 
