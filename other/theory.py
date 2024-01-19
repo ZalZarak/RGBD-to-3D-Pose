@@ -1,11 +1,10 @@
-import copy
 import os
 import time
 import warnings
 
 import pandas as pd
 
-from src.analyzer import cl
+from other.analyzer import cl
 
 use_numpy = False
 
@@ -31,9 +30,6 @@ import matplotlib.pyplot as plt
 
 plt.ion()  # Schaltet den interaktiven Modus ein
 from matplotlib.ticker import MultipleLocator, FuncFormatter
-from mpl_toolkits.mplot3d import Axes3D
-import ipywidgets as widgets
-from IPython.display import display
 
 
 # Function to format the ticks as multiples of pi
@@ -389,7 +385,7 @@ params_for_view2 = {
 }
 
 if __name__ == '__main__':
-    plot(func=f, func_label="f", params=params_for_view2, range_x=(-np.pi/2, np.pi*3/2), range_y=(-1.5, 1.5), points_per_axis=5000)
+    # plot(func=f, func_label="f", params=params_for_view2, range_x=(-np.pi/2, np.pi*3/2), range_y=(-1.5, 1.5), points_per_axis=5000)
 
     # show_statistics_for_multiple_connections(save_path="res/theoretical_stats_3.xlsx", func=f, params=params_for_f, m_points=100,
     #                                         gamma=(-np.pi / 2, np.pi / 2, 100), d=(1., 5., 100), h=(-1.5, 1.5, 100), k_points=0)
@@ -403,16 +399,3 @@ if __name__ == '__main__':
     # print(f(**{'l': 0.63, 's': 0.5, 'm': 0.616, 'gamma': 0.785, 'd': 1., 'h': .3, 't': .54, 'k': 0}))
 
     """p = {'l': 0.63, 's': 0.5, 'm': 0.6011111111111112, 'gamma': 0.5235987755982989, 'd': 1.0, 'h': -0.10606060606060602, 't': 0.2, 'k': 0.0}
-
-    print(f"g_1: {g1(**p)}")
-    print(f"g_2: {g2(**p)}")
-    print(f"g_3: {g3(**p)}")
-    print(f"t_plus: {t_plus(**p)}")
-    print(f"t_min: {t_minus(**p)}")
-    print(f"f: {f(**p)}")
-    for k in range(10):
-        k = k/10
-        p["k"] =float(k)
-        print()
-        print(f"k: {k}")
-        print(f"f_2 {f_2(**p)}")"""
