@@ -5,3 +5,6 @@ pybullet>=3.2.6
 pyrealsense2>=2.54.2.5684
 PyYAML>=6.0.1
 python-cfonts>=1.52
+cupy_cuda12x>=12.3.0
+matplotlib>=3.7.1
+scipy>=1.10.1
