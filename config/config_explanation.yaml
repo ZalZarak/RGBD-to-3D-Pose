@@ -241,10 +241,10 @@ Simulator:
   playback_mode: 1
   # Duration for each frame. Applies only for normal playback mode 1.
   frame_duration: 0.05
-  # File to save performance to. Not saved if empty.
+  # File to save performance to. Not saved if None.
   # For each frame, it saves the time for waiting on data from perceptor, the time for performing one simulation step
   # and the accumulated time
-  save_performance_file: False
+  save_performance_file: None
   # If limbs should be simulated.
   simulate_limbs: True
   # If joints should be simulated.
