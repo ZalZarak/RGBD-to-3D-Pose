@@ -1,4 +1,4 @@
-run: 0  # Perceptor: 0, Simulator: 1, Debug: 2
+run: 1  # Perceptor: 0, Simulator: 1, Debug: 2
 Perceptor:
   playback: true
   playback_file: res/test.bag
@@ -15,11 +15,11 @@ Perceptor:
   show_joints: true
   show_color_mask: false
   # simulate
-  simulate_limbs: false
+  simulate_limbs: true
   simulate_joints: false
   simulate_joint_connections: false
   # camera
-  resolution: [480, 270]
+  resolution: [640, 480]
   fps: 30
   flip: 0
   translation: [0.26, 0.4, -2.48]
@@ -180,6 +180,7 @@ OpenPoseHandler:
 Simulator:
   start_pybullet: true
   build_geometry: true
+  do_sim_steps: true
   playback: true
   playback_file: "res/training_2_joints.pkl"
   playback_mode: 0    # 0: normal, 1: real-time, 2: step-by-step

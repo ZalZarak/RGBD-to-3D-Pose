@@ -231,6 +231,9 @@ Simulator:
   # If this process should build geometry. If false, generate it yourself and set self.limbs_pb and p.setCollisionFilterGroupMask
   # accordingly. Consider the code part and the README for that.
   build_geometry: true
+  # If this Simulator will call pybullet.stepSimulation(), true if standalone.
+  # If false, reset_limb_velocities needs to be called manually after each simulation step where limbs where moved.
+  do_sim_steps: true
   # If Simulator should read joints from provided file.
   playback: true
   # File to read joints from

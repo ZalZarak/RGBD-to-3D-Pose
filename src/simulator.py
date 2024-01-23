@@ -22,7 +22,7 @@ def is_joint_valid(joint: np.ndarray):
 
 
 class Simulator:
-    def __init__(self, start_pybullet: bool, build_geometry: bool, playback: bool, playback_file: str | None, playback_mode: int, frame_duration: float,
+    def __init__(self, start_pybullet: bool, build_geometry: bool, do_sim_steps: bool, playback: bool, playback_file: str | None, playback_mode: int, frame_duration: float,
                  save_performance_file: str, simulate_limbs: bool, simulate_joints: bool, simulate_joint_connections: bool,
                  move_in_physic_sim: bool, min_distance_to_move_outside_physic_sim: float, time_delta_move_in_physic_sim: float,
                  joint_map: dict, limbs: list[tuple[str, str]], radii: dict, lengths: dict,
@@ -36,6 +36,8 @@ class Simulator:
         :param start_pybullet: If this process should start PyBullet. True if standalone, False if integrated into another program which uses PyBullet.
         :param build_geometry: If this process should build geometry. If false, generate it yourself and set self.limbs_pb and p.setCollisionFilterGroupMask
                                accordingly. Consider the code part and the README for that.
+        :param do_sim_steps: If this Simulator will call pybullet.stepSimulation().
+                             If false, reset_limb_velocities needs to be called manually after each simulation step where limbs where moved.
         :param playback: If Simulator should read joints from provided file.
         :param playback_file: File to read joints from
         :param playback_mode: 0: normal mode, simulate each frame for [frame_duration] sec.
@@ -190,6 +192,8 @@ class Simulator:
             # Communicate to Perceptor that Simulator is ready
             self.ready_sync.set()
 
+        self.step = self.step_full if do_sim_steps else self.step_part
+
     def run(self):
         """
         Run Simulator as configured.
@@ -296,16 +300,16 @@ class Simulator:
             self.step(joints)
             self.last_frame = i
 
-    def step(self, joints: np.ndarray):
+    def step_part(self, joints: np.ndarray):
         """
-        Perform one simulation step. Save joints in self.joints.
+        Set new positions and velocities for limbs, but without performing a simulation step.
+        Save joints in self.joints.
+
         :param joints: New joint positions
         :return: None
         """
 
-        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, int(False))
-
-        joints = joints[:, [0, 2, 1]]   # adjust axis to fit pybullet axis
+        joints = joints[:, [0, 2, 1]]  # adjust axis to fit pybullet axis
         self.joints = joints.copy()
         if self.simulate_joints:
             self.move_points(joints)
@@ -313,12 +317,33 @@ class Simulator:
             self.visualize_connections(joints)
         if self.simulate_limbs:
             self.move_limbs(joints)
-        p.stepSimulation()
 
-        # Reset limb velocities to 0 prevent them from moving with potential additional simulation steps.
+    def reset_limb_velocities(self):
+        """
+        Reset limb linear and angular velocities to 0.
+
+        :return: None
+        """
+
         if self.simulate_limbs:
             for limb_pb in self.limbs_pb.values():
                 p.resetBaseVelocity(limb_pb, linearVelocity=[0, 0, 0], angularVelocity=[0, 0, 0])
+
+    def step_full(self, joints: np.ndarray):
+        """
+        Perform one simulation step. Save joints in self.joints.
+
+        :param joints: New joint positions
+        :return: None
+        """
+
+        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, int(False))
+
+        self.step_part(joints)
+        p.stepSimulation()
+
+        # Reset limb velocities to 0 prevent them from moving with potential additional simulation steps.
+        self.reset_limb_velocities()
 
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, int(True))
         time.sleep(0.001)
