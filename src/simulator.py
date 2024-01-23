@@ -38,6 +38,7 @@ class Simulator:
                                accordingly. Consider the code part and the README for that.
         :param do_sim_steps: If this Simulator will call pybullet.stepSimulation().
                              If false, reset_limb_velocities needs to be called manually after each simulation step where limbs where moved.
+                             For efficient simulation, call p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, int(b)) with b=False before the step and with b=True after the step.
         :param playback: If Simulator should read joints from provided file.
         :param playback_file: File to read joints from
         :param playback_mode: 0: normal mode, simulate each frame for [frame_duration] sec.
